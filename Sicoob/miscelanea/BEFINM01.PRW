@@ -40,6 +40,14 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 	Local cDatIni     := ""
 	Local cDatFim     := ""
 	Local cCodPort    := ""
+	Local _cMVPar01   := ""
+	Local _cMVPar02   := ""
+	Local _cMVPar03   := ""
+	Local _cMVPar07   := Stod(space(8))
+	Local _cMVPar08   := Stod(space(8))
+	Local _cMVPar18   := ""
+	Local _cMVPar19   := ""
+	Local _cMVPar20   := ""
 	Private lLogin    := Type("cEmpAnt") != "U"
 	Private cFilter   := ""
 	Private nVlrAbat  := 0
@@ -50,14 +58,8 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 	DEFAULT lImpBol   := .T.
 
 	If !lLogin
-		RpcSetEnv("01","0201","Admin")
+		RpcSetEnv("01","01","Admin")
 	EndIf
-
-	cCodPort := GetBco(MV_PAR03, MV_PAR01)
-
-	iF !Empty(cCodPort)
-		cBco := cCodPort
-	EndIF
 
 	If Empty(MV_PAR01)
 		Pergunte("NFSIGW",.F.)
@@ -70,14 +72,29 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 		Pergunte("NFSIGW",.F.)
 	endif
 
-	If MV_PAR01 <> cNota .and. !Empty(MV_PAR01)
-		MV_PAR01 := cNota
-		MV_PAR02 := cNota
-		MV_PAR03 := cSerie
+	_cMVPar01 := MV_PAR01
+	_cMVPar02 := MV_PAR02
+	_cMVPar03 := MV_PAR03
+	_cMVPar07 := MV_PAR07
+	_cMVPar08 := MV_PAR08
+	_cMVPar18 := MV_PAR18
+	_cMVPar19 := MV_PAR19
+	_cMVPar20 := MV_PAR20
+
+	cCodPort := GetBco(_cMVPar03, _cMVPar01)
+
+	iF !Empty(cCodPort)
+		cBco := cCodPort
+	EndIF
+
+	If _cMVPar01 <> cNota .and. !Empty(_cMVPar01)
+		_cMVPar01 := cNota
+		_cMVPar02 := cNota
+		_cMVPar03 := cSerie
 	endif
 
-	cDatIni     := iif(Empty(MV_PAR07),DtoS(dDataBase),DtoS(MV_PAR07))
-	cDatFim     := iif(Empty(MV_PAR08),DtoS(dDataBase),DtoS(MV_PAR08))
+	cDatIni     := iif(Empty(_cMVPar07),DtoS(dDataBase),DtoS(_cMVPar07))
+	cDatFim     := iif(Empty(_cMVPar08),DtoS(dDataBase),DtoS(_cMVPar08))
 
 	cCodConv  := "338184"
 	cBcoCNAB  := PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
@@ -132,11 +149,11 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
         FROM
             %Table:SE1% E1
         WHERE
-            E1.E1_NUM >= %Exp:MV_PAR01%
-            and E1.E1_NUM <= %Exp:MV_PAR02%
-            AND E1.E1_PREFIXO = %Exp:MV_PAR03%
+            E1.E1_NUM >= %Exp:_cMVPar01%
+            AND E1.E1_NUM <= %Exp:_cMVPar02%
+            AND E1.E1_PREFIXO = %Exp:_cMVPar03%
             AND E1.E1_EMISSAO >= %Exp:cDatIni%
-            and E1.E1_EMISSAO <= %Exp:cDatFim%
+            AND E1.E1_EMISSAO <= %Exp:cDatFim%
             AND E1.E1_TIPO NOT IN ('NCC', 'RA')
             AND E1.d_e_l_e_t_ = ' '
             AND E1.E1_SALDO > 0 //and e1.E1_NUMBCO = ' '
@@ -181,7 +198,7 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 			STRTRAN(AllTrim(SA1->A1_BAIRROC),"-"," ")          }		// [9]BAIRRO
 		Endif
 
-		aBolText    := { Alltrim(MV_PAR18),Alltrim(MV_PAR19),Alltrim(MV_PAR20) }
+		aBolText    := { Alltrim(_cMVPar18),Alltrim(_cMVPar19),Alltrim(_cMVPar20) }
 		nVlrAbat    :=  SomaAbat((cTMPSE1)->E1_PREFIXO,(cTMPSE1)->E1_NUM,(cTMPSE1)->E1_PARCELA,"R",1,,(cTMPSE1)->E1_CLIENTE,(cTMPSE1)->E1_LOJA)
 		If Empty((cTMPSE1)->E1_NUMBCO)
 			If cBco == "001"
@@ -216,11 +233,7 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 		EndIf
 
 		If Empty((cTMPSE1)->E1_NUMBCO)
-			If cBco == "001"
-				lRetBB := U_RLWS0010("GER",@aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,@aCB_RN_NN)
-			Else
-				lRetBB := U_RLWS0024("GER",@aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,@aCB_RN_NN)
-			EndIf
+			lRetBB := U_RLWS0024("GER",@aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,@aCB_RN_NN)
 		Else
 			lRetBB := .T.
 		EndIF
@@ -273,7 +286,7 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 		If FWIsInCallStack("U_FENVBOL1")
 			U_RLFINR05(cSerie,cNota,cNota,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"FENVBOL1")
 		Else
-			U_RLFINR05(MV_PAR03,MV_PAR01,MV_PAR02,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"")
+			U_RLFINR05(_cMVPar03,_cMVPar01,_cMVPar02,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"")
 		Endif
 	EndIf
 
