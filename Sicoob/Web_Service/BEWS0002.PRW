@@ -23,7 +23,7 @@ Objetivo: Integração EndPoints
 User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,aCB_RN_NN)
 
 	Local aAreaSICOOB     := Getarea()
-	Local nX              := 0
+	Local nX,nY,nZ        := 0
 	Local cCert	          := ""
 	Local cKey	          := ""
 	Local cBcoCNAB        := ""
@@ -34,9 +34,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 	Local lExclui         := .F.
 	Local lDetalh         := .F.
 	Local cCodConv        := "338184"
-	//Local cDir            := "/TMP/"
 	Local lLogin          := Type("cEmpAnt") != "U"
-	Local cDatBase        := ""
 	Local cDatIni         := ""
 	Local cDatFim         := ""
 	Local cURL            := ""
@@ -57,8 +55,19 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 		lDetalh   := cOrigem == "DET"
 	EndIf
 
-	cDatBase  := DtoS(dDataBase)
 	dDatabkp  := dDataBase
+
+	IF cOrigem == "LIS"
+		For nX:= 1 to 7
+			if datavalida(DATE()-nX) <> DATE()
+				cDatIni := CVALTOCHAR(YEAR(DATE()-nX))+STRZERO(MONTH(DATE()-nX),2)+STRZERO(DAY(DATE()-nX),2)
+				dDataBase := DATE()-nX
+				EXIT
+			EndIf
+		Next nX
+		cDatFim := cDatIni
+	EndIF
+
 	cCert     := "\certs\0201_certif_cert.pem"
 	cKey      := "\certs\0201_certif_key.pem"
 	cBcoCNAB  := AllTrim( SuperGETMV( "BE_BCSICOB",, "756" ))
@@ -130,19 +139,239 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 		Else
 			Alert(cPostRet)
 		EndIf
-	EndIf
-	IF cOrigem == "LIS"
-		For nX:= 1 to 7
-			if datavalida(DATE()-nX) <> DATE()
-				cDatIni := CVALTOCHAR(YEAR(DATE()-nX))+STRZERO(MONTH(DATE()-nX),2)+STRZERO(DAY(DATE()-nX),2)
-				dDataBase := DATE()-nX
-				EXIT
-			EndIf
-		Next nX
-	EndIF
 
-	cDatFim     := cDatIni
+	ElseIf lExclui
+
+		cPath  := "/boletos/baixa"
+		nRecno := GetChave(Alltrim(aCB_RN_NN[3]))
+		dbSelectArea( "SE1" )
+		SE1->(DbGoTo(nRecno))
+		oJsonSicoob :=  JsonObject():New()
+
+		oJsonSicoob['numeroContrato']  := val(cCodConv)
+		oJsonSicoob['modalidade']      := 1
+		oJsonSicoob['nossoNumero']     := val(aCB_RN_NN[3])
+		oJsonSicoob['seuNumero']       := Alltrim(SE1->E1_NUM)+Alltrim(SE1->E1_PARCELA)
+
+		cBody := EncodeUTF8(oJsonSicoob:ToJson())
+		cResponse := HTTPQuote( cURL+cPath, "PATCH", "", "["+cBody+"]", 120, aClone(aHeader), @cHeaderRet )
+
+		oResponse := JsonObject():new()
+		oResponse:fromJson(FwNoAccent(cResponse))
+		If oResponse['resultado'][1]['status']['codigo'] == 200 .or. (oResponse['resultado'][1]['status']['codigo'] == 400 .and. "processo de baixa" $ oResponse['resultado'][1]['status']['mensagem'])
+			FWLogMsg("INFO", "", "Retorno Sicoob:", "BEWS0002", "", "", "Cancelamento da cobrança do título "+ oResponse['resultado'][1]['boleto']['seuNumero'], 0, 0)
+			lRet := .T.
+			Return lRet
+		Else
+			FWLogMsg("WARN", "", "Retorno Sicoob:", "BEWS0002", "", "", "Retorno ao tentar cancelar a cobrança bancária", 0, 0)
+			Return lRet
+		EndIf
+	Else
+		cPath     := "/boletos/solicitacoes/movimentacao"
+
+		oJsonSicoob :=  JsonObject():New()
+
+		oJsonSicoob['numeroContrato']                  := val(cCodConv)
+		oJsonSicoob['tipoMovimento']                   := 5
+		oJsonSicoob['dataInicial']                     := FWTimeStamp(5,ddatabase,Time())
+		oJsonSicoob['dataFinal']                       := FWTimeStamp(5,ddatabase,Time())
+
+		cBody := EncodeUTF8(oJsonSicoob:ToJson())
+		cPostRet := HTTPSPost( cUrl + cPath, cCert, cKey, cPswCert, cPostParms, cBody, nTimeOut, aHeader, @cHeaderGet)
+
+		oResponse := JsonObject():new()
+		oResponse:fromJson(FwNoAccent(cPostRet))
+		If valtype(oResponse['resultado']['codigoSolicitacao']) == "N"
+			cParams := "numeroContrato=" + cCodConv +"&"
+			cParams += "codigoSolicitacao=" + cValtoChart(oResponse['resultado']['codigoSolicitacao'])
+			cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, cParams, nTimeOut, aHeader, @cHeaderGet)
+			SLEEP( 20000 )
+			oResp:= JsonObject():new()
+			oResp:fromJson(FwNoAccent(cPostRet))
+			If oResp['resultado']['quantidadeArquivo'] > 0
+				cPath := "/boletos/movimentacao-download"
+				For nZ := 1 to Len(oResp['resultado']['idArquivos'])
+					_cParams := cParams+"&idArquivo="+cValtoChar(oResp['resultado']['idArquivos'][nZ])
+					cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, _cParams, nTimeOut, aHeader, @cHeaderGet)
+					oRespZip:= JsonObject():new()
+					oRespZip:fromJson(FwNoAccent(cPostRet))
+					If !Empty(oRespZip['resultado']['arquivo'])
+						cNomeArq := substr(oRespZip['resultado']['nomeArquivo'],1,len(oRespZip['resultado']['nomeArquivo'])-4)
+						cArquivo := cDir+cNomeArq+".zip"
+						cDecode  := Decode64(oRespZip['resultado']['arquivo'])
+						MemoWrite(cArquivo,cDecode)
+						FUnzip( cArquivo, cDir)
+						cJsonStr := decodeutf8(ReadFile(cDir+cNomeArq+".json"))
+						oJson := JSonObject():New()
+						if FwJSONDeserialize(cJsonStr,@oJson)
+							cDatIni   := StrTran(cDatIni,"-","")
+							cDatFim   := StrTran(cDatFim,"-","")
+							cPeriodo  := substr(cDatIni,7,2)+"/"+substr(cDatIni,5,2)+"/"+substr(cDatIni,1,4) +" à " + substr(cDatFim,7,2)+"/"+substr(cDatFim,5,2)+"/"+substr(cDatFim,1,4)
+							cMailAud  := SuperGetMv("RL_MAILAUD",.f.,"trbcode@gmail.com")
+							cEmail    := SuperGetMv("RL_MAILBXR",.f.,"vilsonei.vieira@gruporp.com.br")
+							cHtml     := SuperGetMv("RL_RELBAIX",.T.,'BaixasReceberSicoob.html')
+							cHtmlEr   := SuperGetMv("RL_RELBXER",.T.,'BaixasReceberErro.html')
+							cAssunto  := "Relatório das Baixas do dia"
+
+							U_RLUTIL01({cHtml})
+							U_RLUTIL01({cHtmlEr})
+							ConOut( "Inicio baixa API Sicoob!")
+							For nY := 1 to Len(oJson)
+								nVlrJur := 0
+								lLiq := oJson[nY]['MODALIDADE'] == 1
+								cNosso := cValToChar(oJson[nY]['NUMEROTITULO'])
+								nRecno := GetChave(cNosso)
+								If lLiq .and. nRecno > 0
+									dDatMov     := datavalida(StoD(strtran(substr(oJson[nY]['DATALIQUIDACAO'],1,10),'-','')))
+									dDatCred    := datavalida(StoD(strtran(substr(oJson[nY]['DATAPREVISAOCREDITO'],1,10),'-','')))
+									nValBx      := oJson[nY]['VALORTITULO']
+									ntotal      += oJson[nY]['VALORTITULO']
+									natual      += oJson[nY]['VALORLIQUIDO']
+									If (oJson[nY]['VALORLIQUIDO'] - oJson[nY]['VALORTITULO']) > nVlrReg
+										nVlrJur := (oJson[nY]['VALORLIQUIDO'] - oJson[nY]['VALORTITULO'])
+										nTotJur += nVlrJur
+									endIf
+									If BE02GrBx(nRecno, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCred,dDatMov,nVlrJur)
+										FWLogMsg("WARN", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8("O titulo com o nosso numero "+cNosso+" foi baixado com sucesso!") , 0, 0)
+										nVlrTar     += oJson[nY]['VALORTARIFAMOVIMENTO']
+									Else
+										FWLogMsg("WARN", "", "Erro", "BEWS0002", "", "", EncodeUTF8("Erro ao baixar titulo com o nosso numero "+cNosso+"!") , 0, 0)
+									EndIf
+								EndIf
+								nRecno := 0
+							Next nY
+
+							if nVlrTar > 0
+								if IncMov(cBcoCNAB,cAgeCNAB,cCtaCNAB,"20831", "P", , , nVlrTar, dDatCred, , , "Movimento tariafa gerado com sucesso!")
+									FWLogMsg("WARN", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8("Tarifa gerada com sucesso!") , 0, 0)
+								EndIf
+							EndIf
+
+							ConOut( "Valor total baixa ="+Transform(ntotal,'@E 999,999,999.99'))
+							ConOut( "Valor total Original ="+Transform(natual,'@E 999,999,999.99'))
+							ConOut( "Valor total Original ="+Transform(nTotJur,'@E 999,999,999.99'))
+							ntotal := 0
+							nTotJur := 0
+							If Len(aDados) > 0
+								For nZ := 1 to Len(aDados)
+									GrvSE3(aDados[nZ][8],aDados[nZ][10])
+									cRelacao += "<tr><td align='center'>"+aDados[nZ][1]+;
+										"</td> <td align='center'>"+aDados[nZ][2]+;
+										"</td> <td align='center'>"+aDados[nZ][3]+;
+										"</td> <td>"+aDados[nZ][5]+;
+										"</td> <td align='center'>"+DTOC(aDados[nZ][6])+;
+										"</td> <td align='center'>"+DTOC(aDados[nZ][7])+;
+										"</td> <td align='center'>"+aDados[nZ][4]+;
+										"</td> <td align='right'>"+Transform(aDados[nZ][9],'@E 999,999,999.99')+;
+										"</td> <td align='right'>"+Transform(aDados[nZ][8],'@E 999,999,999.99')+;
+										"</td></tr>"
+									ntotal += aDados[nZ][8]
+									nTotJur += aDados[nZ][9]
+								Next nZ
+								SendMail()
+							EndIf
+							cRelacao := ""
+							ntotal := 0
+							nTotJur := 0
+							If Len(aDadosEr) > 0
+								For nZ := 1 to Len(aDadosEr)
+									cRelacao += "<tr><td align='center'>"+aDadosEr[nZ][1]+;
+										"</td> <td align='center'>"+aDadosEr[nZ][2]+;
+										"</td> <td align='center'>"+aDadosEr[nZ][3]+;
+										"</td> <td>"+aDadosEr[nZ][5]+;
+										"</td> <td align='center'>"+DTOC(aDadosEr[nZ][6])+;
+										"</td> <td align='center'>"+DTOC(aDadosEr[nZ][7])+;
+										"</td> <td align='center'>"+aDadosEr[nZ][4]+;
+										"</td> <td align='right'>"+Transform(aDadosEr[nZ][9],'@E 999,999,999.99')+;
+										"</td> <td align='right'>"+Transform(aDadosEr[nZ][8],'@E 999,999,999.99')+;
+										"</td></tr>"
+									ntotal += aDadosEr[nZ][8]
+									nTotJur += aDadosEr[nZ][9]
+								Next nZ
+								SendMailEr()
+							EndIf
+						EndIf
+					EndIf
+				Next nZ
+			EndIF
+		Else
+			Alert(FwJSONDeserialize(cPostRet,@oJson))
+		EndIf
+	EndIf
 
 	dDataBase := dDatabkp
 	RestArea(aAreaSicoob)
 Return()
+
+
+/*/{Protheus.doc} BE02GrBx
+Baixa os títulos a receber
+@type function
+@version  
+@author iglal
+@since 8/14/2024
+@param nRecnoSE1, numeric, param_description
+@param nValBx, numeric, param_description
+@param cBcoCNAB, character, param_description
+@param cAgeCNAB, character, param_description
+@param cCtaCNAB, character, param_description
+@param dDatCred, date, param_description
+@param dDatMov, date, param_description
+@param nVlrJur, numeric, param_description
+@return variant, return_description
+/*/
+Static Function BE02GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCred,dDatMov,nVlrJur)
+
+	Local aAreaSE1       := GetArea()
+	Local lRet           :=  .F.
+	Local aVetor         := {}
+	Private lMsErroAuto  := .F.
+	Private lMsHelpAuto  := .T.
+	Private lMostraErro  := .F.
+	Default nValBx       := 0
+	Default nRecnoSE1    := 0
+
+	lMsErroAuto := .F.
+	dbSelectArea( "SE1" )
+	SE1->(DbGoTo(nRecnoSE1))
+
+	If SE1->E1_SALDO > 0
+
+		AADD(aVetor,{"E1_PREFIXO"		, SE1->E1_PREFIXO 		,Nil})
+		AADD(aVetor,{"E1_NUM"			, SE1->E1_NUM       	,Nil})
+		AADD(aVetor,{"E1_PARCELA"		, SE1->E1_PARCELA  		,Nil})
+		AADD(aVetor,{"E1_TIPO"	   	 	, SE1->E1_TIPO     		,Nil})
+		AADD(aVetor,{"E1_CLIENTE"		, SE1->E1_CLIENTE  		,Nil})
+		AADD(aVetor,{"E1_LOJA"	    	, SE1->E1_LOJA     		,Nil})
+		AADD(aVetor,{"E1_MOEDA"	    	, SE1->E1_MOEDA     	,Nil})
+		AADD(aVetor,{"AUTMOTBX"	    	, "NOR"            		,Nil})
+		AADD(aVetor,{"AUTDTBAIXA"		, dDatMov				,Nil})
+		AADD(aVetor,{"AUTDTCREDITO"	    , dDatCred				,Nil})
+		AADD(aVetor,{"AUTHIST"	    	, OemToAnsi("BAIXA API Sicoob")	,Nil})
+		AADD(aVetor,{"AUTBANCO"			, cBcoCNAB				,NIL}) //Banco
+		AADD(aVetor,{"AUTAGENCIA"		, PADR(cAgeCNAB,TAMSX3("E1_AGEDEP")[1]),NIL}) //agencia
+		AADD(aVetor,{"AUTCONTA"			, PADR(cCtaCNAB,TAMSX3("E1_CONTA")[1]),NIL}) //Conta
+		if nVlrJur > 0
+			AADD(aVetor,{"AUTJUROS"	    ,nVlrJur                ,Nil })
+		EndIF
+		AADD(aVetor,{"AUTVALREC"		, nValBx+nVlrJur		,NIL}) //Valor de pagamento
+
+		MSExecAuto({|x,y| Fina070(x,y)},aVetor,3)
+
+		//Em caso de erro na baixa desarma a transacao
+		If lMsErroAuto
+			lRet:= .F.
+			Aadd(aDadosEr,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+			If !IsBlind()
+				MOSTRAERRO() // Sempre que o micro comeca a apitar esta ocorrendo um erro desta forma
+			EndIf
+		Else
+			Aadd(aDados,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur,SE5->(RECNO())})
+			lRet := .T.
+		Endif
+	Else
+		Aadd(aDadosEr,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+		lRet := .F.
+	Endif
+	RestArea(aAreaSE1)
+Return lRet

@@ -43,8 +43,8 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 	Local _cMVPar01   := ""
 	Local _cMVPar02   := ""
 	Local _cMVPar03   := ""
-	Local _cMVPar07   := Stod(space(8))
-	Local _cMVPar08   := Stod(space(8))
+	Local _cMVPar04   := Stod(space(8))
+	Local _cMVPar05   := Stod(space(8))
 	Local _cMVPar18   := ""
 	Local _cMVPar19   := ""
 	Local _cMVPar20   := ""
@@ -61,22 +61,27 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 		RpcSetEnv("01","01","Admin")
 	EndIf
 
+	If !ValidPerg()
+		Return()
+	EndIf
+
 	If Empty(MV_PAR01)
 		Pergunte("NFSIGW",.F.)
 		MV_PAR01 := ""
 		MV_PAR02 := "ZZZZZZZZZ"
-		MV_PAR07 := DATE() - 360
-		MV_PAR08 := DATE()
+		MV_PAR04 := DATE() - 360
+		MV_PAR05 := DATE()
 	EndIf
-	if VALTYPE(MV_PAR07) <>"D"
+
+	if VALTYPE(MV_PAR04) <>"D"
 		Pergunte("NFSIGW",.F.)
 	endif
 
 	_cMVPar01 := MV_PAR01
 	_cMVPar02 := MV_PAR02
 	_cMVPar03 := MV_PAR03
-	_cMVPar07 := MV_PAR07
-	_cMVPar08 := MV_PAR08
+	_cMVPar04 := MV_PAR04
+	_cMVPar05 := MV_PAR05
 	_cMVPar18 := MV_PAR18
 	_cMVPar19 := MV_PAR19
 	_cMVPar20 := MV_PAR20
@@ -93,8 +98,8 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 		_cMVPar03 := cSerie
 	endif
 
-	cDatIni     := iif(Empty(_cMVPar07),DtoS(dDataBase),DtoS(_cMVPar07))
-	cDatFim     := iif(Empty(_cMVPar08),DtoS(dDataBase),DtoS(_cMVPar08))
+	cDatIni     := iif(Empty(_cMVPar04),DtoS(dDataBase),DtoS(_cMVPar04))
+	cDatFim     := iif(Empty(_cMVPar05),DtoS(dDataBase),DtoS(_cMVPar05))
 
 	cCodConv  := "338184"
 	cBcoCNAB  := PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
@@ -156,7 +161,7 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
             AND E1.E1_EMISSAO <= %Exp:cDatFim%
             AND E1.E1_TIPO NOT IN ('NCC', 'RA')
             AND E1.d_e_l_e_t_ = ' '
-            AND E1.E1_SALDO > 0 //and e1.E1_NUMBCO = ' '
+            AND E1.E1_SALDO > 0 
         order by
             E1_PREFIXO,
             E1_NUM,
@@ -212,28 +217,17 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 			aCB_RN_NN[6] := Alltrim((cTMPSE1)->E1_XPIXEMV)
 		EndIF
 
-		If (cTMPSE1)->E1_CLIENTE <> '45543915'      //Alexandre - Alteração efetuada para atender o carrefour 01/08/2014
-			aDadosTit	:= {AllTrim((cTMPSE1)->E1_NUM)+AllTrim((cTMPSE1)->E1_PARCELA)		,;  // [1] Número do título
-			(cTMPSE1)->E1_EMISSAO                              	,;  // [2] Data da emissão do título
-			dDataBase                    					,;  // [3] Data da emissão do boleto
-			(cTMPSE1)->E1_VENCTO                               	,;  // [4] Data do vencimento
-			((cTMPSE1)->E1_SALDO-nVlrAbat+ (cTMPSE1)->E1_ACRESC - (cTMPSE1)->E1_DECRESC)                  	,;  // [5] Valor do título
-			aCB_RN_NN[3]                             	,;  // [6] Nosso número (Ver fórmula para calculo)
-			(cTMPSE1)->E1_PREFIXO                               	,;  // [7] Prefixo da NF
-			(cTMPSE1)->E1_TIPO	                           		}   // [8] Tipo do Titulo
-		Else
-			aDadosTit	:= {AllTrim((cTMPSE1)->E1_NUM)		,;  // [1] Número do título
-			(cTMPSE1)->E1_EMISSAO                              	,;  // [2] Data da emissão do título
-			dDataBase                    					,;  // [3] Data da emissão do boleto
-			(cTMPSE1)->E1_VENCTO                               	,;  // [4] Data do vencimento
-			((cTMPSE1)->E1_SALDO-nVlrAbat+ (cTMPSE1)->E1_ACRESC - (cTMPSE1)->E1_DECRESC)                  	,;  // [5] Valor do título
-			aCB_RN_NN[3]                             	,;  // [6] Nosso número (Ver fórmula para calculo)
-			(cTMPSE1)->E1_PREFIXO                               	,;  // [7] Prefixo da NF
-			(cTMPSE1)->E1_TIPO	                           		}   // [8] Tipo do Titulo
-		EndIf
+		aDadosTit	:= {AllTrim((cTMPSE1)->E1_NUM)+AllTrim((cTMPSE1)->E1_PARCELA)		,;  // [1] Número do título
+		(cTMPSE1)->E1_EMISSAO                              	,;  // [2] Data da emissão do título
+		dDataBase                    					,;  // [3] Data da emissão do boleto
+		(cTMPSE1)->E1_VENCTO                               	,;  // [4] Data do vencimento
+		((cTMPSE1)->E1_SALDO-nVlrAbat+ (cTMPSE1)->E1_ACRESC - (cTMPSE1)->E1_DECRESC)                  	,;  // [5] Valor do título
+		aCB_RN_NN[3]                             	,;  // [6] Nosso número (Ver fórmula para calculo)
+		(cTMPSE1)->E1_PREFIXO                               	,;  // [7] Prefixo da NF
+		(cTMPSE1)->E1_TIPO	                           		}   // [8] Tipo do Titulo
 
 		If Empty((cTMPSE1)->E1_NUMBCO)
-			lRetBB := U_RLWS0024("GER",@aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,@aCB_RN_NN)
+			lRetBB := U_BEWS0002("GER",@aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,@aCB_RN_NN)
 		Else
 			lRetBB := .T.
 		EndIF
@@ -249,12 +243,6 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 					SE1->E1_CONTA    := cCtaCNAB
 					SE1->E1_PORTADO  := cBcoCNAB
 					SE1->E1_HIST     := "BOLETO GERADO VIA API"
-					SE1->E1_ZBOLENV  := "2" //-- PTorres - Março/2023 - Gravar se o boleto foi registrado ou não!
-					IF cBco == "001"
-						SE1->E1_XPIXURL  := aCB_RN_NN[4]
-						SE1->E1_XPIXID   := aCB_RN_NN[5]
-						SE1->E1_XPIXEMV  := aCB_RN_NN[6]
-					EndIf
 					If !Empty(aCB_RN_NN[1]) .and. Empty(SE1->E1_CODBAR)
 						SE1->E1_CODBAR := Alltrim(aCB_RN_NN[1])
 						SE1->E1_CODDIG := Alltrim(aCB_RN_NN[2])
@@ -265,17 +253,6 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 		Else
 			lImpBol := .F.
 			MsgInfo("Boleto não registrado!","BEFINM01")
-			//-- PTorres - Março/2023 - Gravar se o boleto foi registrado ou não!
-			DbSelectArea("SE1")
-			SE1->(DbSetOrder(1))
-			SE1->(DbSeek(xFilial("SE1")+(cTMPSE1)->E1_PREFIXO+(cTMPSE1)->E1_NUM+(cTMPSE1)->E1_PARCELA))
-
-			If (Empty(SE1->E1_NUMBCO) .OR. Empty(SE1->E1_AGEDEP) .OR. Empty(SE1->E1_CONTA) .OR. Empty(SE1->E1_PORTADO))
-				If RecLock("SE1",.f.)
-					SE1->E1_ZBOLENV := "2"
-					SE1->(MsUnlock())
-				Endif
-			Endif
 		Endif
 
 		(cTMPSE1)->(DBSkip())
@@ -283,11 +260,7 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 
 	If lImpBol
 		//-- Inicia a impressão do boleto
-		If FWIsInCallStack("U_FENVBOL1")
-			U_RLFINR05(cSerie,cNota,cNota,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"FENVBOL1")
-		Else
-			U_RLFINR05(_cMVPar03,_cMVPar01,_cMVPar02,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"")
-		Endif
+		U_BEFINR01(_cMVPar03,_cMVPar01,_cMVPar02,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"")
 	EndIf
 
 	//-- Finaliza alias de trabalho
@@ -332,3 +305,29 @@ Static Function GetBco(cSerie, cNota)
 
 	(cTMPSE1)->(DbCloseArea())
 Return cRet
+
+/*/{Protheus.doc} ValidPerg
+description
+@type function
+@version  
+@author iglal
+@since 8/14/2024
+@return variant, return_description
+/*/
+Static Function ValidPerg()
+
+	Local lRet      := .F.
+	Local aParBox   := {}
+	Local aParRet   := {}
+	Local dDataDe   := FirstDate(Date())
+	Local dDataAt   := LastDate(Date())
+
+	//Adiciona os parametros para a pergunta
+	AADD( aParBox , { 1 , "Nota de"     , TAMSX3("E1_NUM")[1] , , ,"SE1" , , 050 , .F. } )
+	AADD( aParBox , { 1 , "Nota até"    , TAMSX3("E1_NUM")[1] , , ,"SE1", , 050 , .F. } )
+	AADD( aParBox , { 1 , "Prefixo"     , TAMSX3("E1_PREFIXO")[1] , , , , , 050 , .F. } )
+	AADD( aParBox , { 1 , "Emissão de"  , dDataDe , , , , , 050 , .F. } )
+	AADD( aParBox , { 1 , "Emissão até" , dDataAt , , , , , 050 , .F. } )
+
+	lRet := ParamBox(aParBox ,"Cargas",aParRet)
+Return lRet
