@@ -24,7 +24,7 @@ Objective: objective
     @table   Tables
     @since   29-05-2024
 /*/
-User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
+User Function BEFINM01(	cNFpr01,cNFpr02,cPfxpr02,dDtpr04,dDtpr05,cMSGpr06,cMSGpr07,cMSGpr08,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 
 	Local aAreaNF     := GetArea()
 	Local aDadosEmp   := {}
@@ -40,14 +40,6 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 	Local cDatIni     := ""
 	Local cDatFim     := ""
 	Local cCodPort    := ""
-	Local _cMVPar01   := ""
-	Local _cMVPar02   := ""
-	Local _cMVPar03   := ""
-	Local _cMVPar04   := Stod(space(8))
-	Local _cMVPar05   := Stod(space(8))
-	Local _cMVPar18   := ""
-	Local _cMVPar19   := ""
-	Local _cMVPar20   := ""
 	Private lLogin    := Type("cEmpAnt") != "U"
 	Private cFilter   := ""
 	Private nVlrAbat  := 0
@@ -61,50 +53,41 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 		RpcSetEnv("01","01","Admin")
 	EndIf
 
-	If !ValidPerg()
-		Return()
+	If !FWIsInCallStack("U_BEFINM02")
+		If Empty(MV_PAR01) .or. VALTYPE(MV_PAR04) <> "D"
+			Pergunte("NFSIGW",.F.)
+		EndIf
+
+		cNFpr01   := MV_PAR01
+		cNFpr02   := MV_PAR02
+		cPfxpr02  := MV_PAR03
+		dDtpr04   := MV_PAR04
+		dDtpr05   := MV_PAR05
+		cMSGpr06  := MV_PAR18
+		cMSGpr07  := MV_PAR19
+		cMSGpr08  := MV_PAR20
+
 	EndIf
 
-	If Empty(MV_PAR01)
-		Pergunte("NFSIGW",.F.)
-		MV_PAR01 := ""
-		MV_PAR02 := "ZZZZZZZZZ"
-		MV_PAR04 := DATE() - 360
-		MV_PAR05 := DATE()
-	EndIf
-
-	if VALTYPE(MV_PAR04) <>"D"
-		Pergunte("NFSIGW",.F.)
-	endif
-
-	_cMVPar01 := MV_PAR01
-	_cMVPar02 := MV_PAR02
-	_cMVPar03 := MV_PAR03
-	_cMVPar04 := MV_PAR04
-	_cMVPar05 := MV_PAR05
-	_cMVPar18 := MV_PAR18
-	_cMVPar19 := MV_PAR19
-	_cMVPar20 := MV_PAR20
-
-	cCodPort := GetBco(_cMVPar03, _cMVPar01)
+	cCodPort := GetBco(cPfxpr02, cNFpr01)
 
 	iF !Empty(cCodPort)
 		cBco := cCodPort
 	EndIF
 
-	If _cMVPar01 <> cNota .and. !Empty(_cMVPar01)
-		_cMVPar01 := cNota
-		_cMVPar02 := cNota
-		_cMVPar03 := cSerie
+	If cNFpr01 <> cNota .and. !Empty(cNFpr01)
+		cNFpr01 := cNota
+		cNFpr02 := cNota
+		cPfxpr02 := cSerie
 	endif
 
-	cDatIni     := iif(Empty(_cMVPar04),DtoS(dDataBase),DtoS(_cMVPar04))
-	cDatFim     := iif(Empty(_cMVPar05),DtoS(dDataBase),DtoS(_cMVPar05))
+	cDatIni   := iif(Empty(dDtpr04),DtoS(dDataBase),DtoS(dDtpr04))
+	cDatFim   := iif(Empty(dDtpr05),DtoS(dDataBase),DtoS(dDtpr05))
 
-	cCodConv  := "338184"
+	cCodConv  := AllTrim( SuperGETMV( "BE_CONVSIC",, "153842" ))
 	cBcoCNAB  := PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
-	cAgeCNAB  := PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4030" )),TAMSX3("A6_AGENCIA")[1])
-	cCtaCNAB  := PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "421103" )),TAMSX3("A6_NUMCON")[1])
+	cAgeCNAB  := PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4108" )),TAMSX3("A6_AGENCIA")[1])
+	cCtaCNAB  := PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "84298" )),TAMSX3("A6_NUMCON")[1])
 
 	cChaveSA6 := cBcoCNAB+cAgeCNAB+cCtaCNAB
 
@@ -154,9 +137,9 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
         FROM
             %Table:SE1% E1
         WHERE
-            E1.E1_NUM >= %Exp:_cMVPar01%
-            AND E1.E1_NUM <= %Exp:_cMVPar02%
-            AND E1.E1_PREFIXO = %Exp:_cMVPar03%
+            E1.E1_NUM >= %Exp:cNFpr01%
+            AND E1.E1_NUM <= %Exp:cNFpr02%
+            AND E1.E1_PREFIXO = %Exp:cPfxpr02%
             AND E1.E1_EMISSAO >= %Exp:cDatIni%
             AND E1.E1_EMISSAO <= %Exp:cDatFim%
             AND E1.E1_TIPO NOT IN ('NCC', 'RA')
@@ -203,13 +186,10 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 			STRTRAN(AllTrim(SA1->A1_BAIRROC),"-"," ")          }		// [9]BAIRRO
 		Endif
 
-		aBolText    := { Alltrim(_cMVPar18),Alltrim(_cMVPar19),Alltrim(_cMVPar20) }
+		aBolText    := { Alltrim(cMSGpr06),Alltrim(cMSGpr07),Alltrim(cMSGpr08) }
 		nVlrAbat    :=  SomaAbat((cTMPSE1)->E1_PREFIXO,(cTMPSE1)->E1_NUM,(cTMPSE1)->E1_PARCELA,"R",1,,(cTMPSE1)->E1_CLIENTE,(cTMPSE1)->E1_LOJA)
-		If Empty((cTMPSE1)->E1_NUMBCO)
-			If cBco == "001"
-				aCB_RN_NN[3] := cCodConv+StrZero(Val(Right(Alltrim((cTMPSE1)->E1_NUM),07)),07) + StrZERO(Val(Alltrim((cTMPSE1)->E1_PARCELA)),3)
-			EndIf
-		Else
+
+		If !Empty((cTMPSE1)->E1_NUMBCO)
 			cBco := (cTMPSE1)->E1_PORTADO
 			aCB_RN_NN[3] := Alltrim((cTMPSE1)->E1_NUMBCO)
 			aCB_RN_NN[4] := Alltrim((cTMPSE1)->E1_XPIXURL)
@@ -260,7 +240,7 @@ User Function BEFINM01(cNota,cSerie,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
 
 	If lImpBol
 		//-- Inicia a impressão do boleto
-		U_BEFINR01(_cMVPar03,_cMVPar01,_cMVPar02,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"")
+		U_BEFINR01(cPfxpr02,cNFpr01,cNFpr02,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"")
 	EndIf
 
 	//-- Finaliza alias de trabalho
@@ -286,8 +266,13 @@ Return
 
 Static Function GetBco(cSerie, cNota)
 
+	Local lLogin    := Type("cEmpAnt") != "U"
 	Local cRet := ""
 	Local cTMPSE1 := GetNextAlias()
+
+	If !lLogin
+		RpcSetEnv("01","01","Admin")
+	EndIf
 
 	BeginSql Alias cTMPSE1
         SELECT
@@ -306,28 +291,3 @@ Static Function GetBco(cSerie, cNota)
 	(cTMPSE1)->(DbCloseArea())
 Return cRet
 
-/*/{Protheus.doc} ValidPerg
-description
-@type function
-@version  
-@author iglal
-@since 8/14/2024
-@return variant, return_description
-/*/
-Static Function ValidPerg()
-
-	Local lRet      := .F.
-	Local aParBox   := {}
-	Local aParRet   := {}
-	Local dDataDe   := FirstDate(Date())
-	Local dDataAt   := LastDate(Date())
-
-	//Adiciona os parametros para a pergunta
-	AADD( aParBox , { 1 , "Nota de"     , TAMSX3("E1_NUM")[1] , , ,"SE1" , , 050 , .F. } )
-	AADD( aParBox , { 1 , "Nota até"    , TAMSX3("E1_NUM")[1] , , ,"SE1", , 050 , .F. } )
-	AADD( aParBox , { 1 , "Prefixo"     , TAMSX3("E1_PREFIXO")[1] , , , , , 050 , .F. } )
-	AADD( aParBox , { 1 , "Emissão de"  , dDataDe , , , , , 050 , .F. } )
-	AADD( aParBox , { 1 , "Emissão até" , dDataAt , , , , , 050 , .F. } )
-
-	lRet := ParamBox(aParBox ,"Cargas",aParRet)
-Return lRet

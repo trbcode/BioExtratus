@@ -27,15 +27,15 @@ User Function BEWS0001()
 	Local aHeadOut  := {}
 	Local cHeadRet  := ""
 	Local cPostRet  := ""
-	Local cCert     := SuperGetMV("RL_CHVCER",.T.,"\certs\0201_certif_cert.pem")
-	Local cKey 	    := SuperGetMV("RL_CHVKEY",.T.,"\certs\0201_certif_key.pem")
+	Local cKey 	    := SuperGetMV("BE_CHVKEY",.T.,"\certs\000002_key.pem")
+	Local cCert     := SuperGetMV("BE_CHVCER",.T.,"\certs\000002_cert.pem")
 	Local cAc_Token := ""
-	Local cClientId := SuperGetMV("RL_CLISICO",.T.,"d33a45d6-bebd-4839-9f22-9672d5d83422")
-	Local cPSWBIO   := "" // informar a senha
+	Local cClientId := SuperGetMV("BE_CLISICO",.T.,"9b5e603e428cc477a2841e2683c92d21")
+	Local cPSWBIO   := GETMV("BE_PSWSICO") // informar a senha
 	Local lLogin  := Type("cEmpAnt") != "U"
 
 	If !lLogin
-		RpcSetEnv("01","0201","Admin")
+		RpcSetEnv("01","01","Admin")
 	EndIf
 
 	cAc_Token := "grant_type=client_credentials"

@@ -18,14 +18,13 @@ Objetivo: Integração EndPoints
     @return  Especifica_o_retorno
     @table   Tabelas
     @since   29-05-2024
+	U_BEWS0002("GER",@aDadosEmp,aDadosTit,@aBancos, nPOS,aDatSacado,aBolText,@aDados)
 /*/
 
-User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,aCB_RN_NN)
+User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolText,aDados)
 
 	Local aAreaSICOOB     := Getarea()
 	Local nX,nY,nZ        := 0
-	Local cCert	          := ""
-	Local cKey	          := ""
 	Local cBcoCNAB        := ""
 	Local cAgeCNAB        := ""
 	Local cCtaCNAB        := ""
@@ -33,7 +32,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 	Local lAlter          := .F.
 	Local lExclui         := .F.
 	Local lDetalh         := .F.
-	Local cCodConv        := "338184"
+	Local cCodConv        := AllTrim( aBancos[nPOS][8])
 	Local lLogin          := Type("cEmpAnt") != "U"
 	Local cDatIni         := ""
 	Local cDatFim         := ""
@@ -42,12 +41,20 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 	Local cPath           := ""
 	Local cToken          := ""
 	Local aHeader         := {}
+	Local cKey 	          := SuperGetMV("BE_CHVKEY",.T.,"\certs\000002_key.pem")
+	Local cCert           := SuperGetMV("BE_CHVCER",.T.,"\certs\000002_cert.pem")
+	Local cPostParms      := ""
+	Local nTimeOut        := 120
+	Local cPswCert        := GETMV("BE_PSWSICO")
+	Local cHeaderGet      := ""
+	Local cPostRet        := ""
+	Local lRet        := .F.
 	Private oToken        As Object
 	Private oJsonSicoob   As Object
 
 	If !lLogin
 		cOrigem   := "LIS"
-		RpcSetEnv("01","0201","Admin")
+		RpcSetEnv("01","01","Admin")
 	Else
 		lInclui   := cOrigem == "GER"
 		lAlter    := cOrigem == "ALT"
@@ -68,13 +75,11 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 		cDatFim := cDatIni
 	EndIF
 
-	cCert     := "\certs\0201_certif_cert.pem"
-	cKey      := "\certs\0201_certif_key.pem"
-	cBcoCNAB  := AllTrim( SuperGETMV( "BE_BCSICOB",, "756" ))
-	cAgeCNAB  := AllTrim( SuperGETMV( "BE_AGSICOB",, "4030" ))
-	cCtaCNAB  := AllTrim( SuperGETMV( "BE_CCSICOB",, "421103"))
-	cURL      := SuperGetMV("RL_URLSICO",.T.,"https://api.sicoob.com.br/cobranca-bancaria/v2")
-	cCodClie := SuperGetMV("RL_CLISICO",.T.,"d33a45d6-bebd-4839-9f22-9672d5d83422")
+	cBcoCNAB  := aBancos[nPOS][1]//PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
+	cAgeCNAB  := PADR(Alltrim(aBancos[nPOS][10]),TAMSX3("A6_AGENCIA")[1])//PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4108" )),TAMSX3("A6_AGENCIA")[1])
+	cCtaCNAB  := PADR(Alltrim(aBancos[nPOS][7]),TAMSX3("A6_NUMCON")[1])//PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "84298" )),TAMSX3("A6_NUMCON")[1])
+	cURL      := SuperGetMV("BE_URLSICO",.T.,"https://api.sicoob.com.br/cobranca-bancaria/v2")
+	cCodClie  := SuperGetMV("BE_CLISICO",.T.,"e24ab947-b2b6-4c55-86fb-2662a014a63b")
 
 	oToken := U_BEWS0001()
 	cToken := oToken['token_type']+space(1)+oToken['access_token']
@@ -104,14 +109,14 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 		//oJsonSicoob['valorMulta']                          := 0.33
 		oJsonSicoob['tipoJurosMora']                       := 2 // 1 - Valor por dia 2 - Taxa Mensal 3 - Isento
 		oJsonSicoob['dataJurosMora']                       := FWTimeStamp(5,stod(aDadosTit[4])+1,Time())
-		oJsonSicoob['valorJurosMora']                      := 10.00
+		oJsonSicoob['valorJurosMora']                      := 10.00 // ver de onde pegamas essa informação
 		oJsonSicoob['numeroParcela']                       := 1
 		oJsonSicoob['codigoNegativacao']                   := 3
 		oJsonSicoob['numeroDiasNegativacao']               := 60
 		oJsonSicoob['codigoProtesto']                      := 3
 		oJsonSicoob['numeroDiasProtesto']                  := 30
 		oJsonSicoob['gerarPdf']                            := .f.
-		oJsonSicoob['codigoCadastrarPIX']                  := 2
+		oJsonSicoob['codigoCadastrarPIX']                  := 1
 		oJsonSicoob['pagador']                             := JsonObject():new()
 		oJsonSicoob['pagador']['numeroCpfCnpj']            := Alltrim(aDatSacado[7])
 		oJsonSicoob['pagador']['nome']                     := Alltrim(aDatSacado[1])
@@ -132,9 +137,9 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 		oResponse := JsonObject():new()
 		oResponse:fromJson(FwNoAccent(cPostRet))
 		If oResponse['resultado'][1]['status']['codigo'] == 200
-			aCB_RN_NN[1] := cValtoChar(oResponse['resultado'][1]['boleto']['codigoBarras'])
-			aCB_RN_NN[2] := cValtoChar(oResponse['resultado'][1]['boleto']['linhaDigitavel'])
-			aCB_RN_NN[3] := cValtoChar(oResponse['resultado'][1]['boleto']['nossoNumero'])
+			aDados[2] := cValtoChar(oResponse['resultado'][1]['boleto']['codigoBarras'])
+			aDados[3] := cValtoChar(oResponse['resultado'][1]['boleto']['linhaDigitavel'])
+			aBancos[nPOS][11] := cValtoChar(oResponse['resultado'][1]['boleto']['nossoNumero'])
 			lRet := .T.
 		Else
 			Alert(cPostRet)
@@ -143,34 +148,33 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 	ElseIf lExclui
 
 		cPath  := "/boletos/baixa"
-		nRecno := GetChave(Alltrim(aCB_RN_NN[3]))
+		nRecno := aDados[3]
 		dbSelectArea( "SE1" )
 		SE1->(DbGoTo(nRecno))
 		oJsonSicoob :=  JsonObject():New()
 
 		oJsonSicoob['numeroContrato']  := val(cCodConv)
 		oJsonSicoob['modalidade']      := 1
-		oJsonSicoob['nossoNumero']     := val(aCB_RN_NN[3])
+		oJsonSicoob['nossoNumero']     := val(SE1->E1_NOSNUM)
 		oJsonSicoob['seuNumero']       := Alltrim(SE1->E1_NUM)+Alltrim(SE1->E1_PARCELA)
 
 		cBody := EncodeUTF8(oJsonSicoob:ToJson())
-		cResponse := HTTPQuote( cURL+cPath, "PATCH", "", "["+cBody+"]", 120, aClone(aHeader), @cHeaderRet )
+		cResponse := HTTPQuote( cURL+cPath, "PATCH", "", "["+cBody+"]", 120, aClone(aHeader), @cHeaderGet )
 
 		oResponse := JsonObject():new()
 		oResponse:fromJson(FwNoAccent(cResponse))
 		If oResponse['resultado'][1]['status']['codigo'] == 200 .or. (oResponse['resultado'][1]['status']['codigo'] == 400 .and. "processo de baixa" $ oResponse['resultado'][1]['status']['mensagem'])
-			FWLogMsg("INFO", "", "Retorno Sicoob:", "BEWS0002", "", "", "Cancelamento da cobrança do título "+ oResponse['resultado'][1]['boleto']['seuNumero'], 0, 0)
+			FWAlertSuccess("Cancelamento da cobrança do título "+ oResponse['resultado'][1]['boleto']['seuNumero']+", realizado com sucesso!", "Retorno Sicoob-BEWS0002")
 			lRet := .T.
 			Return lRet
 		Else
-			FWLogMsg("WARN", "", "Retorno Sicoob:", "BEWS0002", "", "", "Retorno ao tentar cancelar a cobrança bancária", 0, 0)
+			FWAlertWarning("Falha ao cancelar cobrança!", "Retorno Sicoob-BEWS0002")
 			Return lRet
 		EndIf
 	Else
 		cPath     := "/boletos/solicitacoes/movimentacao"
 
 		oJsonSicoob :=  JsonObject():New()
-
 		oJsonSicoob['numeroContrato']                  := val(cCodConv)
 		oJsonSicoob['tipoMovimento']                   := 5
 		oJsonSicoob['dataInicial']                     := FWTimeStamp(5,ddatabase,Time())
@@ -204,17 +208,6 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 						cJsonStr := decodeutf8(ReadFile(cDir+cNomeArq+".json"))
 						oJson := JSonObject():New()
 						if FwJSONDeserialize(cJsonStr,@oJson)
-							cDatIni   := StrTran(cDatIni,"-","")
-							cDatFim   := StrTran(cDatFim,"-","")
-							cPeriodo  := substr(cDatIni,7,2)+"/"+substr(cDatIni,5,2)+"/"+substr(cDatIni,1,4) +" à " + substr(cDatFim,7,2)+"/"+substr(cDatFim,5,2)+"/"+substr(cDatFim,1,4)
-							cMailAud  := SuperGetMv("RL_MAILAUD",.f.,"trbcode@gmail.com")
-							cEmail    := SuperGetMv("RL_MAILBXR",.f.,"vilsonei.vieira@gruporp.com.br")
-							cHtml     := SuperGetMv("RL_RELBAIX",.T.,'BaixasReceberSicoob.html')
-							cHtmlEr   := SuperGetMv("RL_RELBXER",.T.,'BaixasReceberErro.html')
-							cAssunto  := "Relatório das Baixas do dia"
-
-							U_RLUTIL01({cHtml})
-							U_RLUTIL01({cHtmlEr})
 							ConOut( "Inicio baixa API Sicoob!")
 							For nY := 1 to Len(oJson)
 								nVlrJur := 0
@@ -250,46 +243,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 							ConOut( "Valor total baixa ="+Transform(ntotal,'@E 999,999,999.99'))
 							ConOut( "Valor total Original ="+Transform(natual,'@E 999,999,999.99'))
 							ConOut( "Valor total Original ="+Transform(nTotJur,'@E 999,999,999.99'))
-							ntotal := 0
-							nTotJur := 0
-							If Len(aDados) > 0
-								For nZ := 1 to Len(aDados)
-									GrvSE3(aDados[nZ][8],aDados[nZ][10])
-									cRelacao += "<tr><td align='center'>"+aDados[nZ][1]+;
-										"</td> <td align='center'>"+aDados[nZ][2]+;
-										"</td> <td align='center'>"+aDados[nZ][3]+;
-										"</td> <td>"+aDados[nZ][5]+;
-										"</td> <td align='center'>"+DTOC(aDados[nZ][6])+;
-										"</td> <td align='center'>"+DTOC(aDados[nZ][7])+;
-										"</td> <td align='center'>"+aDados[nZ][4]+;
-										"</td> <td align='right'>"+Transform(aDados[nZ][9],'@E 999,999,999.99')+;
-										"</td> <td align='right'>"+Transform(aDados[nZ][8],'@E 999,999,999.99')+;
-										"</td></tr>"
-									ntotal += aDados[nZ][8]
-									nTotJur += aDados[nZ][9]
-								Next nZ
-								SendMail()
-							EndIf
-							cRelacao := ""
-							ntotal := 0
-							nTotJur := 0
-							If Len(aDadosEr) > 0
-								For nZ := 1 to Len(aDadosEr)
-									cRelacao += "<tr><td align='center'>"+aDadosEr[nZ][1]+;
-										"</td> <td align='center'>"+aDadosEr[nZ][2]+;
-										"</td> <td align='center'>"+aDadosEr[nZ][3]+;
-										"</td> <td>"+aDadosEr[nZ][5]+;
-										"</td> <td align='center'>"+DTOC(aDadosEr[nZ][6])+;
-										"</td> <td align='center'>"+DTOC(aDadosEr[nZ][7])+;
-										"</td> <td align='center'>"+aDadosEr[nZ][4]+;
-										"</td> <td align='right'>"+Transform(aDadosEr[nZ][9],'@E 999,999,999.99')+;
-										"</td> <td align='right'>"+Transform(aDadosEr[nZ][8],'@E 999,999,999.99')+;
-										"</td></tr>"
-									ntotal += aDadosEr[nZ][8]
-									nTotJur += aDadosEr[nZ][9]
-								Next nZ
-								SendMailEr()
-							EndIf
+
 						EndIf
 					EndIf
 				Next nZ
@@ -301,7 +255,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolTe
 
 	dDataBase := dDatabkp
 	RestArea(aAreaSicoob)
-Return()
+Return(lRet)
 
 
 /*/{Protheus.doc} BE02GrBx
@@ -366,7 +320,7 @@ Static Function BE02GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCre
 				MOSTRAERRO() // Sempre que o micro comeca a apitar esta ocorrendo um erro desta forma
 			EndIf
 		Else
-			Aadd(aDados,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur,SE5->(RECNO())})
+			Aadd(aDadosBx,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur,SE5->(RECNO())})
 			lRet := .T.
 		Endif
 	Else
@@ -375,3 +329,33 @@ Static Function BE02GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCre
 	Endif
 	RestArea(aAreaSE1)
 Return lRet
+
+
+/*/{Protheus.doc} GetChave
+description
+@type function
+@version  
+@author Igor Guimarães
+@since 8/19/2024
+@param cNosso, character, param_description
+@return variant, return_description
+/*/
+Static Function GetChave(cNosso)
+
+	Local nRet      := 0
+	Local cTMPSE1   := GetNextAlias()
+
+	BeginSql Alias cTMPSE1
+        SELECT
+            R_E_C_N_O_
+        FROM
+            %Table:SE1% E1
+        WHERE
+            E1.E1_NUMBCO = %Exp:cNosso%
+            AND D_E_L_E_T_ = ' '
+	EndSql
+	if (cTMPSE1)->(!Eof())
+		nRet := (cTMPSE1)->(R_E_C_N_O_)
+	EndIf
+	(cTMPSE1)->(DbCloseArea())
+Return(nRet)

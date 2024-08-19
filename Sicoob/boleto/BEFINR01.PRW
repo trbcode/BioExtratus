@@ -161,16 +161,12 @@ User Function BEFINR01(cPrefix,cBolDe,cBolAte,cPathPDF,cFilePrint,cCnpj,cNota,cS
 	"I.E.: "+Subs(SM0->M0_INSC,1,3)+"."+Subs(SM0->M0_INSC,4,3)+"."+            ; //[7]
 	Subs(SM0->M0_INSC,7,3)+"."+Subs(SM0->M0_INSC,10,3)                        }  //[7]I.E
 
-	If cBco == "001"
-		cBcoCNAB  := PADR(AllTrim( SuperGETMV( "RL_BCOCNAB",, "001" )),TAMSX3("A6_COD")[1])
-		cAgeCNAB  := PADR(AllTrim( SuperGETMV( "RL_AGECNAB",, "3394" )),TAMSX3("A6_AGENCIA")[1])
-		cCtaCNAB  := PADR(AllTrim( SuperGETMV( "RL_CTACNAB",, "137777" )),TAMSX3("A6_NUMCON")[1])
-	Else
-		cCodConv  := "338184"
-		cBcoCNAB  := PADR(AllTrim( SuperGETMV( "RL_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
-		cAgeCNAB  := PADR(AllTrim( SuperGETMV( "RL_AGSICOB",, "4030" )),TAMSX3("A6_AGENCIA")[1])
-		cCtaCNAB  := PADR(AllTrim( SuperGETMV( "RL_CCSICOB",, "421103" )),TAMSX3("A6_NUMCON")[1])
-	EndIf
+
+	cCodConv  := AllTrim( SuperGETMV( "BE_CONVSIC",, "153842" ))
+	cBcoCNAB  := PADR(AllTrim( SuperGETMV( "RL_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
+	cAgeCNAB  := PADR(AllTrim( SuperGETMV( "RL_AGSICOB",, "4030" )),TAMSX3("A6_AGENCIA")[1])
+	cCtaCNAB  := PADR(AllTrim( SuperGETMV( "RL_CCSICOB",, "421103" )),TAMSX3("A6_NUMCON")[1])
+
 
 	cPrefix      := PadR(cPrefix,TamSX3("E1_PREFIXO")[1])
 	cNumero     := PadR(cNumero,TamSX3("E1_NUM")[1])
