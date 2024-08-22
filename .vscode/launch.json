@@ -26,8 +26,12 @@
 		},
 		{
 			"label": "SIGAMDI"
+		},
+		{
+			"args": [],
+			"label": "u_BEWS0002"
 		}
 	],
-	"lastProgramExecuted": "SIGAMDI",
+	"lastProgramExecuted": "u_BEWS0002",
 	"lastProgramArguments": []
 }

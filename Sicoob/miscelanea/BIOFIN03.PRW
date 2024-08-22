@@ -12,7 +12,7 @@
 #Include "TopConn.ch"
 #include "totvs.ch"
 #INCLUDE 'FWMVCDEF.CH'
-
+#INCLUDE "RPTDEF.CH"
 /*/{Protheus.doc} BIOFIN03
 Geração de Boletos
 @author Luciana Rodrigues
@@ -41,7 +41,7 @@ User Function BIOFIN03()
 	private cDataInicio := '20150608'
 	Private oMark	              //Para controle da seleção (check)
 	Private aBancos   	:= {}     //Array usado em todas as funções que conterá dados do banco selecionado
-	Private aDados[37]            //Array usado para receber os dados do boleto atual
+	Private aDados[38]            //Array usado para receber os dados do boleto atual
 	Private cTitulos              //Titulos que foram selecionados
 	Private cMarc    	:= ""     //Titulos marcados
 	Private cTodos 		:= "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND.E1_NATUREZ <> '102'.AND.E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
@@ -70,9 +70,8 @@ User Function BIOFIN03()
 	oMark:SetFieldMark('E1_OK')
 
 	//Define a legenda
-	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) <>  'S' .AND. ALLTRIM(E1_IDCNAB)=='' .AND. ALLTRIM(E1_NUMBOR) == '' ", "GREEN"	,  "Não Impresso")
-	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) ==  'S' .AND. ALLTRIM(E1_IDCNAB)=='' .AND. ALLTRIM(E1_NUMBOR) <> '' ", "RED"	,  "Não enviados ao Banco")
-	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) ==  'S' .AND. ALLTRIM(E1_IDCNAB)<>'' .AND. ALLTRIM(E1_NUMBOR) <> '' ", "BLACK"	,  "Impresso e Enviado ao Banco")
+	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) <>  'S' .AND. ALLTRIM(E1_NOSNUM)=='' ", "GREEN"	,  "Não Impresso")
+	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) ==  'S' .AND. ALLTRIM(E1_NOSNUM)<>'' ", "BLACK"	,  "Impresso e Enviado ao Banco")
 
 	//Define os títulos que estão marcados
 	bAfterMark := { || markBol()}
@@ -220,8 +219,9 @@ User Function BOLGERA()
 	private cBanco   := ""
 	private cAgencia := ""
 	private cConta   :=  ""
+	private cPerg2	:= "BIOFIN03"
+	private cFilePrint := ""
 
-	Private cPerg2	:= "BIOFIN03"
 
 	IF SE1->E1_XXBOIMP <> 'S' .AND. SM0->M0_CODIGO == '01'
 
@@ -349,7 +349,11 @@ User Function BOLGERA()
 	aBancos[nPOS][15] 	:= cFaixaFim
 	aBancos[nPOS][16] 	:= cFaixaFim
 
-	oPrn := TMSPrinter():New()
+	If EMPTY(cFilePrint)
+		cFilePrint := "BOL_" + Alltrim(QRY->E1_PREFIXO)+"_" + Alltrim(QRY->E1_NUM) + Alltrim(QRY->E1_PARCELA) + Alltrim(QRY->E1_TIPO)  + "_" + AllTrim(QRY->E1_CLIENTE) + "_" + AllTrim(QRY->E1_LOJA)
+	EndIf
+
+	oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
 
 	bPulou := .F.
 
@@ -397,7 +401,7 @@ User Function BOLGERA()
 		dDataBase                    					,;  // [3] Data da emissão do boleto
 		QRY->E1_VENCTO                               	,;  // [4] Data do vencimento
 		nValorReal                	,;  // [5] Valor do título
-		aBancos[nPOS][11]                             	,;  // [6] Nosso número (Ver fórmula para calculo)
+		aDados[13]                             	,;  // [6] Nosso número (Ver fórmula para calculo)
 		QRY->E1_PREFIXO                               	,;  // [7] Prefixo da NF
 		QRY->E1_TIPO	                           		}   // [8] Tipo do Titulo
 
@@ -413,39 +417,19 @@ User Function BOLGERA()
 			endif
 		endif
 
-		lRet := U_BEWS0002("GER",aDadosEmp,aDadosTit,@aBancos,nPOS,aDatSacado,aBolText,@aDados)
-		If !lRet
-			MsgInfo("Boleto não registrado!","BEFINM01")
-			return // igor - provisório até definir regra
-		Endif
-
-		//Obtendo Nosso Número
-		/* igor - não precisa
-		If ! Empty(AllTrim(QRY->E1_NUMBCO)) .and. QRY->E1_XXBOIMP == 'S'
-			cNossoNum := Alltrim(QRY->E1_NUMBCO)                              //Ja foi impresso atribui o mesmo nosso numero
-			bPulou    := .T.
-
+		IF cBanco== "756" .and. Empty(QRY->E1_XQRCODE)//sicoob
+			lRet := U_BEWS0002("GER",aDadosEmp,aDadosTit,@aBancos,nPOS,aDatSacado,aBolText,@aDados)
+			If !lRet
+				MsgInfo("Boleto não registrado!","BEFINM01")
+				return // igor - provisório até definir regra
+			Endif
 		Else
-			bPulou    := .F.
-			If (cBanco == '237')                                               //Bradesco usa a carteira para montar o nosso numero
-				cCodEmp := cCarteira
-			endif
-
-			cNossoNum  := U_MONTANUM (cBanco, alltrim(cCodEmp), cFaixaAtu, cFaixaFim, aBancos[nPOS])
-
-			If cNossoNum == "ERRO1" .or. Empty(cNossoNum)
-				Alert("Verifique o campo código da empresa na tabela de parâmetros bancários. (SEE)")
-				return
-			endif
-
-			If cNossoNum == "ERRO2"
-				Alert("O campo nosso numero está acima da faixa permitida, SERÁ ABORTADO, favor rever a faixa, verifique tabela SEE.")
-				return
-			endif
-
+			aDados[2] := Alltrim(QRY->E1_CODBAR)
+			aDados[3] := Alltrim(QRY->E1_CODDIG)
+			aDados[38] := Alltrim(QRY->E1_XQRCODE)
+			aDados[13] := Alltrim(QRY->E1_NOSNUM)
 		Endif
-		*/
-		//aBancos[nPOS][11] := cNossoNum
+
 
 		//Verificando Abatimento dos títulos
 		nAbatim	:= 0
@@ -459,22 +443,9 @@ User Function BOLGERA()
 
 		njuros := ALLTRIM(transf(njuros,"@E 999,999.99"))
 
-		//Atualiza a linha digitável, codigo de barras
-		//aAux := array(3)
-		//aAux := U_CALCBOL(cBanco, QRY->E1_VENCREA, QRY->E1_SALDO, QRY->E1_DECRESC, nAbatim, QRY->E1_ACRESC,  nPOS, aBancos, QRY->E1_PARCELA) igor - não precisa
-
 		//Montando o array com dados do título para o arry de Dados do boleto
 		//Linha  A do Boleto
 		aDados[1] := aBancos[nPOS][3]                           // Arquivo de logotipo bmp na pasta SYSTEM
-		//aDados[2] := aAux[1][1]                                 // Código de Barras          igor - não precisa
-		//aDados[3] := aAux[1][2]                                 // Linha Digitável           igor - não precisa
-
-		/* igor - não precisa
-		If (len(aAux[1][1]) <> 44)
-			Alert("Código de barras com tamanho inválido - verifique parâmetros bancários na tabela (SEE)")
-			return
-		Endif
-		*/
 
 		oPrn:StartPage()
 
@@ -534,7 +505,6 @@ User Function BOLGERA()
 		ENDIF
 
 		aDados[12]:= DTOC(dDatabase)                    //Data da impressão do boleto
-		aDados[13]:= aBancos[nPOS][11]                  //Nosso Numero
 
 		//Linha  E do Boleto
 		aDados[14]:= cCarteira                          //Carteira
@@ -632,7 +602,10 @@ User Function BOLGERA()
 
 		//Atualiza campos
 		cChave :=	QRY->E1_CLIENTE+QRY->E1_LOJA+QRY->E1_PREFIXO+QRY->E1_NUM+QRY->E1_PARCELA+QRY->E1_TIPO
-		atuaCampos(cChave,aBancos[nPOS], bPulou)
+
+		If Empty(QRY->E1_XQRCODE)
+			atuaCampos(cChave,aBancos[nPOS], bPulou)
+		EndIf
 
 		//Pegando novo sequencial
 		//Buscando parâmetros de banco  e atualizando o array de bancos
@@ -679,10 +652,11 @@ Static Function printBolet(aDados, aBancos, nPOS, oPrn)
 	local I 	:=""
 
 	//Variaveis de Fontes a serem utilizadas para impressao dos boletos
-	oFntTim18N  := TFont():New( "Times New Roman"   ,,18,,.t.,,,,,.f. )
-	oFntTim16N  := TFont():New( "Times New Roman"   ,,16,,.t.,,,,,.f. )
+	oFntTim22N  := TFont():New( "Times New Roman"   ,,22,,.t.,,,,,.f. )
+	oFntTim20N  := TFont():New( "Times New Roman"   ,,20,,.t.,,,,,.f. )
 	oFontAri06  := TFont():New( "Arial"             ,,06,,.f.,,,,,.f. )
-	oFontAri08N := TFont():New( "Arial"             ,,08,,.t.,,,,,.f. )
+	oFontAri08  := TFont():New( "Arial"             ,,08,,.f.,,,,,.f. )
+	oFontAri10N := TFont():New( "Arial"             ,,10,,.t.,,,,,.f. )
 
 	If cbanco == '341'
 		cAgCodCed := alltrim(aBancos[nPOS][10]) 	  +  "/" + alltrim(aBancos[nPOS][9]) + iif(Empty(aBancos[nPOS][6]),"","-" + aBancos[nPOS][6])
@@ -697,7 +671,7 @@ Static Function printBolet(aDados, aBancos, nPOS, oPrn)
 
 	//-----------------------------------------------------  RECIBO DO SACADO E FICHA COMPENSAÇÃO ----------------------------------------------------------------------------------
 	// Monta linhas horizontais
-	nAjust2	:= -1600		// Recibo Sacado
+	nAjust2	:= -2000		// Recibo Sacado
 	nAnt    := nAjust2
 
 	For I := 1 To 2         // 1 - Para recibo do sacado e 2 para Ficha de Compensação
@@ -738,114 +712,120 @@ Static Function printBolet(aDados, aBancos, nPOS, oPrn)
 		IF FILE(aBancos[nPOS,3])
 			oPrn:SayBitmap( 2140+nAjust2, 0050, aBancos[nPOS,3],560,70 )
 		ELSE
-			oPrn:Say( 2150+nAjust2, 0050, aBancos[nPOS,2],oFntTim18N,100)
+			oPrn:Say( 2150+nAjust2, 0050, aBancos[nPOS,2],oFntTim22N,100)
 		ENDIF
 
-		oPrn:Say( 2150+nAjust2, 0640, aBancos[nPOS,4]			,oFntTim18N	,100)	//codigo do banco
-		oPrn:Say( 2155+nAjust2, 0870, aDados[3]      			,oFntTim16N	,100)	//linha digitavel - somente na ficha de compensação
-		oPrn:Say( 2225+nAjust2, 0070, "Local de Pagamento " 	,oFontAri06	,100)
-		oPrn:Say( 2225+nAjust2, 1730, "Vencimento "        	 	,oFontAri06	,100)
-		oPrn:Say( 2245+nAjust2, 0090, aDados[4]					,oFontAri08N,100)
-		oPrn:Say( 2295+nAjust2, 0070, "Beneficiário "       	,oFontAri06	,100)
-		oPrn:Say( 2295+nAjust2, 1730, "Agência/Codigo Beneficiario ",oFontAri06,100)
-		oPrn:Say( 2320+nAjust2, 0090, aDados[6]					,oFontAri08N,100)              //Nome do Cedente
-		oPrn:Say( 2365+nAjust2, 0090, aDados[26]				,oFontAri08N,100)              //Endereço do Cedente
-		oPrn:Say( 2250+nAjust2, 2250, aDados[5]					,oFontAri08N,500, ,NIL , 1 )   //Data Vencimento
-		oPrn:Say( 2365+nAjust2, 2250, cAgCodCed					,oFontAri08N,500, ,NIL , 1 )   //Agencia / Cod Ced
+		oPrn:Say( 2185+nAjust2, 0640, aBancos[nPOS,4]			,oFntTim22N	,100)	//codigo do banco
+		oPrn:Say( 2185+nAjust2, 0870, aDados[3]      			,oFntTim20N	,100)	//linha digitavel - somente na ficha de compensação
+		oPrn:Say( 2235+nAjust2, 0070, "Local de Pagamento " 	,oFontAri08	,100)
+		oPrn:Say( 2235+nAjust2, 1730, "Vencimento "        	 	,oFontAri08	,100)
+		oPrn:Say( 2260+nAjust2, 0090, aDados[4]					,oFontAri10N,100)
+		oPrn:Say( 2305+nAjust2, 0070, "Beneficiário "       	,oFontAri08	,100)
+		oPrn:Say( 2305+nAjust2, 1730, "Agência/Codigo Beneficiario ",oFontAri08,100)
+		oPrn:Say( 2330+nAjust2, 0090, aDados[6]					,oFontAri10N,100)              //Nome do Cedente
+		oPrn:Say( 2375+nAjust2, 0090, aDados[26]				,oFontAri10N,100)              //Endereço do Cedente
+		oPrn:Say( 2260+nAjust2, 2225, aDados[5]					,oFontAri10N,500, ,NIL , 1 )   //Data Vencimento
+		oPrn:Say( 2375+nAjust2, 2215, cAgCodCed					,oFontAri10N,500, ,NIL , 1 )   //Agencia / Cod Ced
 
 		nAjust2 += 50
 
-		oPrn:Say( 2365+nAjust2, 0070, "Data Documento "        	,oFontAri06	,100)
-		oPrn:Say( 2365+nAjust2, 0510, "Nº. Documento "         	,oFontAri06	,100)
-		oPrn:Say( 2365+nAjust2, 0910, "Especie Doc. "          	,oFontAri06	,100)
-		oPrn:Say( 2365+nAjust2, 1110, "Aceite "                	,oFontAri06	,100)
-		oPrn:Say( 2365+nAjust2, 1410, "Data do Processamento " 	,oFontAri06	,100)
-		oPrn:Say( 2365+nAjust2, 1730, "Nosso Numero "          	,oFontAri06	,100)
-		oPrn:Say( 2390+nAjust2, 0090, aDados[8]					,oFontAri08N,100) //Data do documento
-		oPrn:Say( 2390+nAjust2, 0540, aDados[9] 				,oFontAri08N,100) //Numero documento
-		oPrn:Say( 2390+nAjust2, 0970, aDados[10]				,oFontAri08N,100) //Especie
-		oPrn:Say( 2390+nAjust2, 1230, aDados[11]				,oFontAri08N,100) //Aceite
+		oPrn:Say( 2375+nAjust2, 0070, "Data Documento "        	,oFontAri08	,100)
+		oPrn:Say( 2375+nAjust2, 0510, "Nº. Documento "         	,oFontAri08	,100)
+		oPrn:Say( 2375+nAjust2, 0910, "Especie Doc. "          	,oFontAri08	,100)
+		oPrn:Say( 2375+nAjust2, 1110, "Aceite "                	,oFontAri08	,100)
+		oPrn:Say( 2375+nAjust2, 1410, "Data do Processamento " 	,oFontAri08	,100)
+		oPrn:Say( 2375+nAjust2, 1730, "Nosso Numero "          	,oFontAri08	,100)
+		oPrn:Say( 2400+nAjust2, 0090, aDados[8]					,oFontAri10N,100) //Data do documento
+		oPrn:Say( 2400+nAjust2, 0540, aDados[9] 				,oFontAri10N,100) //Numero documento
+		oPrn:Say( 2400+nAjust2, 0970, aDados[10]				,oFontAri10N,100) //Especie
+		oPrn:Say( 2400+nAjust2, 1230, aDados[11]				,oFontAri10N,100) //Aceite
 
 		cDtProces := DToC(dDatabase)
-		oPrn:Say( 2390+nAjust2, 1440, cDtProces 				, oFontAri08N, 100)//Data do processamento
-		oPrn:Say( 2390+nAjust2, 2250, aDados[13]				, oFontAri08N, 500, ,NIL , 1 )  //nosso numero
-		oPrn:Say( 2435+nAjust2, 0070, "Uso do Banco "          	, oFontAri06 , 100)
-		oPrn:Say( 2435+nAjust2, 0510, "Carteira "			   	, oFontAri06 , 100)
-		oPrn:Say( 2435+nAjust2, 0710, "Especie "               	, oFontAri06 , 100)
-		oPrn:Say( 2435+nAjust2, 0910, "Quantidade "           	, oFontAri06 , 100)
-		oPrn:Say( 2435+nAjust2, 1410, "Valor "                 	, oFontAri06 , 100)
-		oPrn:Say( 2435+nAjust2, 1730, "Valor do Documento "    	, oFontAri06 , 100)
-		oPrn:Say( 2460+nAjust2, 0540, aDados[14]     			, oFontAri08N, 100)// Carteira
-		oPrn:Say( 2460+nAjust2, 0715, aDados[15]                , oFontAri08N, 100)
-		oPrn:Say( 2460+nAjust2, 2250, aDados[17]                , oFontAri08N, 500, ,NIL , 1 )  // Valor
-		oPrn:Say( 2505+nAjust2, 0070, "Instruções: "            , oFontAri06 , 100)
-		oPrn:Say( 2505+nAjust2, 1730, "(-) Desconto/Abatimento" , oFontAri06 , 100)
+		oPrn:Say( 2400+nAjust2, 1440, cDtProces 				, oFontAri10N, 100)//Data do processamento
+		oPrn:Say( 2400+nAjust2, 2250, aDados[13]				, oFontAri10N, 500, ,NIL , 1 )  //nosso numero
+		oPrn:Say( 2445+nAjust2, 0070, "Uso do Banco "          	, oFontAri08 , 100)
+		oPrn:Say( 2445+nAjust2, 0510, "Carteira "			   	, oFontAri08 , 100)
+		oPrn:Say( 2445+nAjust2, 0710, "Especie "               	, oFontAri08 , 100)
+		oPrn:Say( 2445+nAjust2, 0910, "Quantidade "           	, oFontAri08 , 100)
+		oPrn:Say( 2445+nAjust2, 1410, "Valor "                 	, oFontAri08 , 100)
+		oPrn:Say( 2445+nAjust2, 1730, "Valor do Documento "    	, oFontAri08 , 100)
+		oPrn:Say( 2470+nAjust2, 0540, aDados[14]     			, oFontAri10N, 100)// Carteira
+		oPrn:Say( 2470+nAjust2, 0715, aDados[15]                , oFontAri10N, 100)
+		oPrn:Say( 2470+nAjust2, 2250, aDados[17]                , oFontAri10N, 500, ,NIL , 1 )  // Valor
+		oPrn:Say( 2515+nAjust2, 0070, "Instruções: "            , oFontAri08 , 100)
+		oPrn:Say( 2515+nAjust2, 1730, "(-) Desconto/Abatimento" , oFontAri08 , 100)
 
 		//Tratando as mensagens
 
 		//Tratando Multa
 		if aDados[31] <> 0 .and. aDados[31] <> NIL
-			nValor    := aDados[21] * aDados[31]    		//Valor * valor juros
-			auxMulta    := TRANSF(nValor,"@E 999,999.99")
-			oPrn:Say (2545+nAjust2, 0090, "MULTA DE R$ " + Alltrim(auxMulta) + " APÓS O VENCIMENTO." ,oFontAri08N,100)	//  Mensagem Juros
+			nValor     := aDados[21] * aDados[31]    		//Valor * valor juros
+			auxMulta   := TRANSF(nValor,"@E 999,999.99")
+			oPrn:Say (2555+nAjust2, 0090, "MULTA DE R$ " + Alltrim(auxMulta) + " APÓS O VENCIMENTO." ,oFontAri10N,100)	//  Mensagem Juros
 		endif
 
 		//Tratando Juros por dia
 		If aDados[32] <> 0  .and. aDados[32] <> NIL
 			nValor  := (aDados[21] * aDados[32])/30		//Valor * valor juros dia
 			auxJur  := TRANSF(nValor,"@E 999,999.99")
-			oPrn:Say (2595+nAjust2, 0090, "APÓS VENCIMENTO JUROS DE R$" + Alltrim(auxJur) + " AO DIA", oFontAri08N, 100) //   Mensagem Multa
+			oPrn:Say (2605+nAjust2, 0090, "APÓS VENCIMENTO JUROS DE R$" + Alltrim(auxJur) + " AO DIA", oFontAri10N, 100) //   Mensagem Multa
 		EndIf
 
 		//Tratando desconto
 		if aDados[33] <> 0   .and. aDados[33] <> NIL
 			nValor    :=  aDados[21] * aDados[33]     		//Valor * % desconto
 			auxDesc   := TRANSF(nValor,"@E 999,999.99")
-			oPrn:Say (2745+nAjust2, 0090, "DESCONTO DE R$ " + Alltrim(auxDesc) + " P/ PAGAMENTO ATÉ O VENCIMENTO", oFontAri08N, 100)//  Mensagem Desconto
+			oPrn:Say (2755+nAjust2, 0090, "DESCONTO DE R$ " + Alltrim(auxDesc) + " P/ PAGAMENTO ATÉ O VENCIMENTO", oFontAri10N, 100)//  Mensagem Desconto
 		endif
 
 		//Tratando desconto no Financeiro
 		if aDados[34] <> 0   .and. aDados[34] <> NIL
 			nValor    :=  aDados[34]     //Valor * % desconto
 			auxDesc   := TRANSF(nValor,"@E 999,999.99")
-			oPrn:Say (2745+nAjust2, 0090, "CONCEDER ABATIMENTO DE R$ " + auxDesc + "", oFontAri08N, 100)       //  Mensagem Desconto
+			oPrn:Say (2755+nAjust2, 0090, "CONCEDER ABATIMENTO DE R$ " + auxDesc + "", oFontAri10N, 100)       //  Mensagem Desconto
 		endif
 
 		//Tratando desconto na por NCC
 		if aDados[35] <> 0   .and. aDados[35] <> NIL
 			nValor    :=  aDados[35]     //Valor * % desconto
 			auxDesc   := TRANSF(nValor,"@E 999,999.99")
-			oPrn:Say (2700+nAjust2, 0090, "JÁ FOI DESCONTADO O VALOR DE R$ " + Alltrim(auxDesc) , oFontAri08N, 100)//  Mensagem Desconto NCC
-			oPrn:Say (2745+nAjust2, 0090, "REFERENTE NF(s): " + Alltrim(aDados[36]), oFontAri08N, 100)       	   //  Mensagem Desconto NCC
+			oPrn:Say (2710+nAjust2, 0090, "JÁ FOI DESCONTADO O VALOR DE R$ " + Alltrim(auxDesc) , oFontAri10N, 100)//  Mensagem Desconto NCC
+			oPrn:Say (2755+nAjust2, 0090, "REFERENTE NF(s): " + Alltrim(aDados[36]), oFontAri10N, 100)       	   //  Mensagem Desconto NCC
 		endif
 
 		//Tratar as mensagens
 		if ! Empty(aDados[28])
-			oPrn:Say( 2645+nAjust2, 0090, aDados[28] ,oFontAri08N, 100) //Mensagens 1
+			oPrn:Say( 2655+nAjust2, 0090, aDados[28] ,oFontAri10N, 100) //Mensagens 1
 		endif
 
 		//cortando estas mensagens e mudando de posição.
 		if ! Empty(aDados[29])
-			oPrn:Say( 2790+nAjust2, 0090, aDados[29] ,oFontAri08N, 100) //Mensagens 2
+			oPrn:Say( 2800+nAjust2, 0090, aDados[29] ,oFontAri10N, 100) //Mensagens 2
 		endif
 
+		//imprime QrCode
+		If I == 2
+			oPrn:QRCode(2805+nAjust2,1350,aDados[38], 80)
+		EndIf
+
 		//---------------------------------------------------------------------------------------------------------------------------------------------------------
-		oPrn:Say( 2575+nAjust2, 1730, "(-) Outras deduções "    , oFontAri06 , 100)
-		oPrn:Say( 2645+nAjust2, 1730, "(+) Mora/Multa/Juros "   , oFontAri06 , 100)
-		oPrn:Say( 2715+nAjust2, 1730, "(+) Outros Acréscimos "  , oFontAri06 , 100)
-		oPrn:Say( 2785+nAjust2, 1730, "(=) Valor Cobrado "      , oFontAri06 , 100)
+		oPrn:Say( 2585+nAjust2, 1730, "(-) Outras deduções "    , oFontAri08 , 100)
+		oPrn:Say( 2655+nAjust2, 1730, "(+) Mora/Multa/Juros "   , oFontAri08 , 100)
+		oPrn:Say( 2725+nAjust2, 1730, "(+) Outros Acréscimos "  , oFontAri08 , 100)
+		oPrn:Say( 2795+nAjust2, 1730, "(=) Valor Cobrado "      , oFontAri08 , 100)
 
-		oPrn:Say( 2850+nAjust2, 0070, "Pagador"                  , oFontAri06 ,100)
-		oPrn:Say( 2885+nAjust2, 0090, aDados[22]                , oFontAri08N, 100)
-		oPrn:Say( 2925+nAjust2, 0090, aDados[23]                , oFontAri08N, 100)
-		oPrn:Say( 2965+nAjust2, 0090, aDados[24]                , oFontAri08N, 100)
+		oPrn:Say( 2860+nAjust2, 0070, "Pagador"                  , oFontAri08 ,100)
+		oPrn:Say( 2895+nAjust2, 0090, aDados[22]                , oFontAri10N, 100)
+		oPrn:Say( 2935+nAjust2, 0090, aDados[23]                , oFontAri10N, 100)
+		oPrn:Say( 2975+nAjust2, 0090, aDados[24]                , oFontAri10N, 100)
 
-		oPrn:Say( 3010+nAjust2, 0070, "Sacador/Avalista "       , oFontAri06 , 100)
-		oPrn:Say( 3050+nAjust2, 1900, "Autenticação Mecânica"   , oFontAri06,  100) //13
+		oPrn:Say( 3020+nAjust2, 0070, "Sacador/Avalista "       , oFontAri08 , 100)
+		oPrn:Say( 3065+nAjust2, 1900, "Autenticação Mecânica"   , oFontAri08,  100) //13
 
-		MSBAR("INT25" ,26.4 , 1.0 ,aDados[2],oPrn,.F.,NIL,.T.,0.0295,1.3,.F.,NIL,NIL,.F.)//impressora
+		oPrn:FWMSBAR("INT25" /*cTypeBar*/,52.3/*nRow*/ ,2.2/*nCol*/, aDados[2]/*cCode*/,oPrn/*oBolNota*/,.F./*lCheck*/,/*Color*/,.T./*lHorz*/,0.025/*nWidth*/,1.5/*nHeigth*/,.F./*lBanner*/,"Arial"/*cFont*/,NIL/*cMode*/,.F./*lPrint*/,2/*nPFWidth*/,2/*nPFHeigth*/,.F./*lCmtr2Pix*/)
 
-		nAjust2 := -100
+
+		nAjust2 := -800
 		nAnt    := nAjust2
 	Next I
 
@@ -925,8 +905,8 @@ Static Function atuaCampos(cChave, aBancos, bPulou)
 	//Atualiza SE1
 	RecLock("SE1",.F.)
 
-	Replace SE1->E1_NUMBCO   with aBancos[11]                   //nosso numero
-	Replace SE1->E1_NOSNUM   with aBancos[11]                   //nosso numero
+	Replace SE1->E1_NUMBCO   with aDados[13]                    //nosso numero
+	Replace SE1->E1_NOSNUM   with aDados[13]                    //nosso numero
 	Replace SE1->E1_MOVIMEN	 with ddatabase                     //Data movimentação
 	Replace SE1->E1_PORTADO	 with aBancos[1]                    //codigo banco
 	Replace SE1->E1_AGEDEP 	 with aBancos[10]                   //agencia sem DV
@@ -936,10 +916,9 @@ Static Function atuaCampos(cChave, aBancos, bPulou)
 	Replace SE1->E1_NUMBOR   with cNumBor                       //Numero Borderô
 	Replace SE1->E1_DATABOR  with dDatabase                     //Dt de criação do Borderô
 	Replace SE1->E1_OK       with ""                            //Para retirar a seleção do campo assim que é impresso
-
-	If cBanco == '756'
-		Replace SE1->E1_IDCNAB      with Substr(aBancos[11],1,7)//Para retirar a seleção do campo assim que é impresso
-	endif
+	Replace SE1->E1_XQRCODE  with aDados[38]                    //QRCode
+	Replace SE1->E1_CODBAR   with aDados[2]                     // Código de Barra
+	Replace SE1->E1_CODDIG   with aDados[3]                     // Linha Digitável
 
 	MsUnLock()
 	SE1->(DbCloseArea())
@@ -1128,7 +1107,8 @@ User Function BOLCANC()
 		cUpd += "		E1_DATABOR  = '',	" /* Data do Borderô	*/
 		cUpd += "		E1_MOVIMEN  = '',	" /* Data da movimentação	*/
 		cUpd += "		E1_OK       = '',	" /* Limpa a marca da seleção	*/
-		cUpd += "		E1_IDCNAB   = '' 	" /* ID CNAB */
+		cUpd += "		E1_IDCNAB   = '', 	" /* ID CNAB */
+		cUpd += "		E1_XQRCODE   = '' 	" /* QRCODE */
 		cUpd += "	WHERE E1_FILIAL = '" + xFilial("SE1") 		+ "'"
 		cUpd += "		AND E1_CLIENTE = '" + QRY1->E1_CLIENTE	+ "'"
 		cUpd += "		AND E1_LOJA = '" 	+ QRY1->E1_LOJA 	+ "'"
@@ -1166,7 +1146,6 @@ User Function BOLCANC()
 		aBancos[1][10] 	:= cAgencia
 		aBancos[1][12] 	:= cCarteira
 		aBancos[1][13] 	:= cFaixaFim
-
 
 		Aadd(aDados,"")
 		Aadd(aDados,"")
@@ -1210,7 +1189,7 @@ User Function BOLCANC()
 
 				SEA->(DbCloseArea())
 			Else
-				IF QRY1->E1_PORTADO == "756"//sicoob
+				IF QRY1->E1_PORTADO == "756" //sicoob
 					lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados)
 					If !lRet
 						MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao SICOOB . Comunique a Equipe Protheus!", "ATENCAO!")
@@ -1220,7 +1199,7 @@ User Function BOLCANC()
 
 			//Ainda não gerou borderô ou cancelou titulo do borderô - poderá excluir
 		Else
-			IF QRY1->E1_PORTADO == "756"//sicoob
+			IF QRY1->E1_PORTADO == "756" //sicoob
 				lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados)
 				If !lRet
 					MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao SICOOB . Comunique a Equipe Protheus!", "ATENCAO!")

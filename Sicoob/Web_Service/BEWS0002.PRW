@@ -32,7 +32,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 	Local lAlter          := .F.
 	Local lExclui         := .F.
 	Local lDetalh         := .F.
-	Local cCodConv        := AllTrim( aBancos[nPOS][8])
+	Local cCodConv        := ""
 	Local lLogin          := Type("cEmpAnt") != "U"
 	Local cDatIni         := ""
 	Local cDatFim         := ""
@@ -41,11 +41,11 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 	Local cPath           := ""
 	Local cToken          := ""
 	Local aHeader         := {}
-	Local cKey 	          := SuperGetMV("BE_CHVKEY",.T.,"\certs\000002_key.pem")
-	Local cCert           := SuperGetMV("BE_CHVCER",.T.,"\certs\000002_cert.pem")
+	Local cKey 	          := ""
+	Local cCert           := ""
 	Local cPostParms      := ""
 	Local nTimeOut        := 120
-	Local cPswCert        := GETMV("BE_PSWSICO")
+	Local cPswCert        := ""
 	Local cHeaderGet      := ""
 	Local cPostRet        := ""
 	Local lRet        := .F.
@@ -60,8 +60,16 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		lAlter    := cOrigem == "ALT"
 		lExclui   := cOrigem == "EXC"
 		lDetalh   := cOrigem == "DET"
+		cCodConv  := AllTrim( aBancos[nPOS][8])
+		cBcoCNAB  := aBancos[nPOS][1]//PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
+		cAgeCNAB  := PADR(Alltrim(aBancos[nPOS][10]),TAMSX3("A6_AGENCIA")[1])//PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4108" )),TAMSX3("A6_AGENCIA")[1])
+		cCtaCNAB  := PADR(Alltrim(aBancos[nPOS][7]),TAMSX3("A6_NUMCON")[1])//PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "84298" )),TAMSX3("A6_NUMCON")[1])
 	EndIf
 
+	cKey 	  := SuperGetMV("BE_CHVKEY",.T.,"\certs\000002_key.pem")
+	cCert     := SuperGetMV("BE_CHVCER",.T.,"\certs\000002_cert.pem")
+	cCodConv  := "153842"
+	cPswCert  := GETMV("BE_PSWSICO")
 	dDatabkp  := dDataBase
 
 	IF cOrigem == "LIS"
@@ -75,9 +83,6 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		cDatFim := cDatIni
 	EndIF
 
-	cBcoCNAB  := aBancos[nPOS][1]//PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
-	cAgeCNAB  := PADR(Alltrim(aBancos[nPOS][10]),TAMSX3("A6_AGENCIA")[1])//PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4108" )),TAMSX3("A6_AGENCIA")[1])
-	cCtaCNAB  := PADR(Alltrim(aBancos[nPOS][7]),TAMSX3("A6_NUMCON")[1])//PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "84298" )),TAMSX3("A6_NUMCON")[1])
 	cURL      := SuperGetMV("BE_URLSICO",.T.,"https://api.sicoob.com.br/cobranca-bancaria/v2")
 	cCodClie  := SuperGetMV("BE_CLISICO",.T.,"e24ab947-b2b6-4c55-86fb-2662a014a63b")
 
@@ -109,7 +114,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		//oJsonSicoob['valorMulta']                          := 0.33
 		oJsonSicoob['tipoJurosMora']                       := 2 // 1 - Valor por dia 2 - Taxa Mensal 3 - Isento
 		oJsonSicoob['dataJurosMora']                       := FWTimeStamp(5,stod(aDadosTit[4])+1,Time())
-		oJsonSicoob['valorJurosMora']                      := 10.00 // ver de onde pegamas essa informação
+		oJsonSicoob['valorJurosMora']                      := 10.00 // buscar na SEE
 		oJsonSicoob['numeroParcela']                       := 1
 		oJsonSicoob['codigoNegativacao']                   := 3
 		oJsonSicoob['numeroDiasNegativacao']               := 60
@@ -137,9 +142,10 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oResponse := JsonObject():new()
 		oResponse:fromJson(FwNoAccent(cPostRet))
 		If oResponse['resultado'][1]['status']['codigo'] == 200
-			aDados[2] := cValtoChar(oResponse['resultado'][1]['boleto']['codigoBarras'])
-			aDados[3] := cValtoChar(oResponse['resultado'][1]['boleto']['linhaDigitavel'])
-			aBancos[nPOS][11] := cValtoChar(oResponse['resultado'][1]['boleto']['nossoNumero'])
+			aDados[2]  := cValtoChar(oResponse['resultado'][1]['boleto']['codigoBarras'])
+			aDados[3]  := cValtoChar(oResponse['resultado'][1]['boleto']['linhaDigitavel'])
+			aDados[13] := cValtoChar(oResponse['resultado'][1]['boleto']['nossoNumero'])
+			aDados[38] := oResponse['resultado'][1]['boleto']['qrCode']
 			lRet := .T.
 		Else
 			Alert(cPostRet)
