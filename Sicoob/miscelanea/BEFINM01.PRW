@@ -93,7 +93,7 @@ description
 Static Function ValidPerg()
 
 	Local lRet      := .F.
-	Local dDataDe   := FirstDate(Date())
+	Local dDataDe   := Date()-1
 
 	//Adiciona os parametros para a pergunta
 

@@ -101,13 +101,14 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oJsonSicoob['identificacaoDistribuicaoBoleto']     := 2
 		oJsonSicoob['valor']                               := aDadosTit[5]
 		oJsonSicoob['dataVencimento']                      := FWTimeStamp(5,stod(aDadosTit[4]),Time())
+		oJsonSicoob['dataLimitePagamento']                 := FWTimeStamp(5,stod(aDadosTit[4])+30,Time())
 		oJsonSicoob['tipoDesconto']                        := 0
 		oJsonSicoob['tipoMulta']                           := 0 //0 - Isento 1 - Valor Fixo 2 - Percentual
 		//oJsonSicoob['dataMulta']                           := FWTimeStamp(5,stod(aDadosTit[4])+1,Time())
 		//oJsonSicoob['valorMulta']                          := 0.33
 		oJsonSicoob['tipoJurosMora']                       := 2 // 1 - Valor por dia 2 - Taxa Mensal 3 - Isento
 		oJsonSicoob['dataJurosMora']                       := FWTimeStamp(5,stod(aDadosTit[4])+1,Time())
-		oJsonSicoob['valorJurosMora']                      := 10.00 // buscar na SEE
+		oJsonSicoob['valorJurosMora']                      := aBancos[nPOS][7] // buscar na SEE
 		oJsonSicoob['numeroParcela']                       := 1
 		oJsonSicoob['codigoNegativacao']                   := 3
 		oJsonSicoob['numeroDiasNegativacao']               := 60
