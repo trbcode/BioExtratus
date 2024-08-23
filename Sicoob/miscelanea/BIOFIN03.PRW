@@ -106,7 +106,7 @@ Static Function MenuDef()
 	ADD OPTION aRotina TITLE 'Não enviados ao Banco'	ACTION 'U_BOLIMP()'     OPERATION 3 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC()'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
-
+	ADD OPTION aRotina TITLE 'Baixas Sicoob'	ACTION 'U_BEFINM01()'   OPERATION 1 ACCESS 0//
 Return aRotina
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 /*/{Protheus.doc} markBol
@@ -346,8 +346,8 @@ User Function BOLGERA()
 	aBancos[nPOS][10] 	:= cAgencia
 	aBancos[nPOS][12] 	:= cCarteira
 	aBancos[nPOS][13] 	:= cFaixaFim
-	aBancos[nPOS][15] 	:= cFaixaFim
-	aBancos[nPOS][16] 	:= cFaixaFim
+	aBancos[nPOS][15] 	:= cJuros
+	aBancos[nPOS][16] 	:= cJurDia
 
 	If EMPTY(cFilePrint)
 		cFilePrint := "BOL_" + Alltrim(QRY->E1_PREFIXO)+"_" + Alltrim(QRY->E1_NUM) + Alltrim(QRY->E1_PARCELA) + Alltrim(QRY->E1_TIPO)  + "_" + AllTrim(QRY->E1_CLIENTE) + "_" + AllTrim(QRY->E1_LOJA)

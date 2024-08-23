@@ -30,8 +30,12 @@
 		{
 			"args": [],
 			"label": "u_BEWS0002"
+		},
+		{
+			"args": [],
+			"label": "u_BEFINM01"
 		}
 	],
-	"lastProgramExecuted": "u_BEWS0002",
+	"lastProgramExecuted": "u_BEFINM01",
 	"lastProgramArguments": []
 }

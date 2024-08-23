@@ -1,293 +1,103 @@
 /*//#########################################################################################
-Project  : project
-Module   : module
-Source   : BEFINM01
-Objective: objective
+Projeto : project
+Modulo  : module
+Fonte   : BEFINM02
+Objetivo: cHAMA ROTINA
 *///#########################################################################################
 
 #INCLUDE 'TOTVS.CH'
 
 /*/{Protheus.doc} BEFINM01
-
-    Gera dados do boleto pra enviar API SICOOB
-
-    @author  Igor Guimarães
-    @example Example
-    @param      1 - Nota
-                2 - Série
-                3 - Coódigo do Cliente
-                4 - Loja
-                5 - Enderço do arquivo
-                6 - Objeto de Impressão
-                7 - Se Imprime Boleto
-    @return  Return
-    @table   Tables
-    @since   29-05-2024
+Executa baixas dos títulos  Sicoob
+@type user function
+@author Igor Guimarães
+@since 15/08/2024
+@version version
+@return return_var, return_type, return_description
+@example
+(examples)
+@see (links_or_references)
 /*/
-User Function BEFINM01(	cNFpr01,cNFpr02,cPfxpr02,dDtpr04,dDtpr05,cMSGpr06,cMSGpr07,cMSGpr08,cCodiC,cLojaC,cCamArq,oDANFE,lImpBol)
+User Function BEFINM01()
 
-	Local aAreaNF     := GetArea()
-	Local aDadosEmp   := {}
-	Local aDadosBanco := {}
-	Local aDatSacado  := {}
-	Local aDadosTit   := {}
-	Local aBolText    := {}
-	Local aCB_RN_NN   := Array(6)
-	Local cCodConv    := ""
-	Local cChaveSA6   := ""
-	Local lRetBB      := .F.
-	Local cTMPSE1     := GetNextAlias()
-	Local cDatIni     := ""
-	Local cDatFim     := ""
-	Local cCodPort    := ""
-	Private lLogin    := Type("cEmpAnt") != "U"
-	Private cFilter   := ""
-	Private nVlrAbat  := 0
-	Private cBcoCNAB  := ""
-	Private cAgeCNAB  := ""
-	Private cCtaCNAB  := ""
+	Local aArea     := GetArea()
+	Local lLogin    := Type("cEmpAnt") != "U"
+	Local nX  		:= 0
+	Local cDatIni   := ""
+	Local cDatFim   := ""
+	Local aBancos   := {}
+	Local cBcoCNAB  := ""
+	Local cAgeCNAB  := ""
+	Local cCtaCNAB  :=  ""
+	Local nPOS      := 1
+	Private aParBox := {}
+	Private aParRet := {}
 
-	DEFAULT lImpBol   := .T.
-
-	If !lLogin
+	if !lLogin
 		RpcSetEnv("01","01","Admin")
-	EndIf
-
-	If !FWIsInCallStack("U_BEFINM02")
-		If Empty(MV_PAR01) .or. VALTYPE(MV_PAR04) <> "D"
-			Pergunte("NFSIGW",.F.)
-		EndIf
-
-		cNFpr01   := MV_PAR01
-		cNFpr02   := MV_PAR02
-		cPfxpr02  := MV_PAR03
-		dDtpr04   := MV_PAR04
-		dDtpr05   := MV_PAR05
-		cMSGpr06  := MV_PAR18
-		cMSGpr07  := MV_PAR19
-		cMSGpr08  := MV_PAR20
-
-	EndIf
-
-	cCodPort := GetBco(cPfxpr02, cNFpr01)
-
-	iF !Empty(cCodPort)
-		cBco := cCodPort
-	EndIF
-
-	If cNFpr01 <> cNota .and. !Empty(cNFpr01)
-		cNFpr01 := cNota
-		cNFpr02 := cNota
-		cPfxpr02 := cSerie
 	endif
 
-	cDatIni   := iif(Empty(dDtpr04),DtoS(dDataBase),DtoS(dDtpr04))
-	cDatFim   := iif(Empty(dDtpr05),DtoS(dDataBase),DtoS(dDtpr05))
-
-	cCodConv  := AllTrim( SuperGETMV( "BE_CONVSIC",, "153842" ))
 	cBcoCNAB  := PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
 	cAgeCNAB  := PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4108" )),TAMSX3("A6_AGENCIA")[1])
-	cCtaCNAB  := PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "84298" )),TAMSX3("A6_NUMCON")[1])
+	cCtaCNAB  := PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "8429" )),TAMSX3("A6_NUMCON")[1])
 
-	cChaveSA6 := cBcoCNAB+cAgeCNAB+cCtaCNAB
+	AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
 
-	aDadosEmp := {	SM0->M0_NOMECOM                                               ,; //[1]Nome da Empresa
-	SM0->M0_ENDCOB                                                            ,; //[2]Endereço
-	AllTrim(SM0->M0_BAIRCOB)+", "+AllTrim(SM0->M0_CIDCOB)+", "+SM0->M0_ESTCOB ,; //[3]Complemento
-	"CEP: "+Subs(SM0->M0_CEPCOB,1,5)+"-"+Subs(SM0->M0_CEPCOB,6,3)             ,; //[4]CEP
-	"PABX/FAX: "+SM0->M0_TEL                                                  ,; //[5]Telefones
-	"CNPJ: "+Subs(SM0->M0_CGC,1,2)+"."+Subs(SM0->M0_CGC,3,3)+"."+              ; //[6]
-	Subs(SM0->M0_CGC,6,3)+"/"+Subs(SM0->M0_CGC,9,4)+"-"+                       ; //[6]
-	Subs(SM0->M0_CGC,13,2)                                                    ,; //[6]CGC
-	"I.E.: "+Subs(SM0->M0_INSC,1,3)+"."+Subs(SM0->M0_INSC,4,3)+"."+            ; //[7]
-	Subs(SM0->M0_INSC,7,3)+"."+Subs(SM0->M0_INSC,10,3)                        }  //[7]I.E
+	//Buscando parâmetros de banco  e atualizando o array de bancos
+	dbSelectArea("SEE")
+	dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
+	dbSeek( XFILIAL("SEE")	+ cBcoCNAB    + cAgeCNAB   + cCtaCNAB   +  '001',     .T.)
 
-	dbSelectArea("SA6")
-	dbSetOrder(1)
-	dbSeek(xFilial("SA6")+cChaveSA6,.T.)
-	aDadosBanco  := {SA6->A6_COD,; 													   			// [1]Numero do Banco
-	SA6->A6_NREDUZ,;  											       	// [2]Nome do Banco
-	SUBSTR(SA6->A6_AGENCIA, 1, 4)+"-"+SUBSTR(SA6->A6_AGENCIA, 5, 5),; 	// [3]Agência
-	alltrim(SA6->A6_NUMCON),; 	       									// [4]Conta Corrente
-	SA6->A6_DVCTA  ,;    	   												// [5]Dígito da conta corrente
-	"17"}
+	aBancos[nPOS][5]	 :=  alltrim(SEE->EE_DVAGE)
+	aBancos[nPOS][6]    :=  alltrim(SEE->EE_DVCTA)
+	aBancos[nPOS][7]    :=  alltrim(cCtaCNAB) + alltrim(SEE->EE_DVCTA)
+	aBancos[nPOS][8]    :=  alltrim(SEE->EE_CODEMP)
+	aBancos[nPOS][9]    :=  cCtaCNAB
+	aBancos[nPOS][10]   :=  cAgeCNAB
+	aBancos[nPOS][12]   :=  alltrim(SEE->EE_XXCARTE)
+	aBancos[nPOS][13]   :=  alltrim(SEE->EE_FAXFIM)
+	aBancos[nPOS][15]   :=  SEE->EE_XXTXJUR
+	aBancos[nPOS][16]   :=  SEE->EE_XXTXJDI
 
-	BeginSql Alias cTMPSE1
-        SELECT
-            E1_PREFIXO,
-            E1_NUM,
-            E1_PARCELA,
-            E1_EMISSAO,
-            E1_CLIENTE,
-            E1_LOJA,
-            E1_NUMBCO,
-            E1_VENCTO,
-            E1_TIPO,
-            E1_VALOR,
-            E1_SALDO,
-            E1_ACRESC,
-            E1_DECRESC,
-            E1_AGEDEP E1_CONTA,
-            E1_PORTADO,
-            E1_HIST,
-            E1_XPIXURL,
-            E1_XPIXID,
-            E1_XPIXEMV,
-            E1_CODBAR
-        FROM
-            %Table:SE1% E1
-        WHERE
-            E1.E1_NUM >= %Exp:cNFpr01%
-            AND E1.E1_NUM <= %Exp:cNFpr02%
-            AND E1.E1_PREFIXO = %Exp:cPfxpr02%
-            AND E1.E1_EMISSAO >= %Exp:cDatIni%
-            AND E1.E1_EMISSAO <= %Exp:cDatFim%
-            AND E1.E1_TIPO NOT IN ('NCC', 'RA')
-            AND E1.d_e_l_e_t_ = ' '
-            AND E1.E1_SALDO > 0 
-        order by
-            E1_PREFIXO,
-            E1_NUM,
-            E1_PARCELA
-	EndSql
+	if !IsBlind()
+		if !ValidPerg()
+			Return()
+		endif
+		dDtaBx  := MV_PAR01
+		cDatIni := dtos(dDtaBx)
+		cDatFim := cDatIni
+	else
+		for nX:= 1 to 7
+			if datavalida(DATE()-nX) <> DATE()
+				cDatIni := CVALTOCHAR(YEAR(DATE()-nX))+STRZERO(MONTH(DATE()-nX),2)+STRZERO(DAY(DATE()-nX),2)
+				dDtaBx := DATE()-nX
+				exit
+			endif
+		Next nX
+		cDatFim := cDatIni
+	endif
 
-	While (cTMPSE1)->(!EOF())
-		aCB_RN_NN := Array(6)
-		aDadosTit := {}
-		//Posiciona o SA1 (Cliente)
-		dbSelectArea("SA1")
-		dbSetOrder(1)
-		dbSeek(xFilial("SA1")+(cTMPSE1)->E1_CLIENTE+(cTMPSE1)->E1_LOJA)
-
-		If SA1->A1_IMPBOL == "2"
-			(cTMPSE1)->(DBSkip())
-			loop
-		EndIf
-
-		If Empty(SA1->A1_ENDCOB)
-			aDatSacado   := {AllTrim(SA1->A1_NOME)           ,;      	// [1]Razão Social
-			AllTrim(SA1->A1_COD )+"-"+SA1->A1_LOJA           ,;      	// [2]Código
-			STRTRAN(AllTrim(SA1->A1_END),"-"," ")                     ,;      	// [3]Endereço
-			AllTrim(SA1->A1_MUN )                            ,;			// [4]Cidade
-			SA1->A1_EST                                      ,;    		// [5]Estado
-			cvaltochar(val(SA1->A1_CEP))                                      ,;      	// [6]CEP
-			SA1->A1_CGC									     ,;			// [7]CGC
-			SA1->A1_PESSOA									 ,;         // [8]PESSOA
-			STRTRAN(AllTrim(SA1->A1_BAIRRO),"-"," ")                  } 			// [9]BAIRRO
-		Else
-			aDatSacado   := {AllTrim(SA1->A1_NOME)              ,;   	// [1]Razão Social
-			AllTrim(SA1->A1_COD )+"-"+SA1->A1_LOJA              ,;   	// [2]Código
-			STRTRAN(AllTrim(SA1->A1_ENDCOB),"-"," "),;                       	// [3]Endereço
-			AllTrim(SA1->A1_MUNC)	                            ,;   	// [4]Cidade
-			SA1->A1_ESTC	                                    ,;   	// [5]Estado
-			cvaltochar(val(SA1->A1_CEPC))                                        ,;   	// [6]CEP
-			SA1->A1_CGC										    ,;		// [7]CGC
-			SA1->A1_PESSOA									    ,;      // [8]PESSOA
-			STRTRAN(AllTrim(SA1->A1_BAIRROC),"-"," ")          }		// [9]BAIRRO
-		Endif
-
-		aBolText    := { Alltrim(cMSGpr06),Alltrim(cMSGpr07),Alltrim(cMSGpr08) }
-		nVlrAbat    :=  SomaAbat((cTMPSE1)->E1_PREFIXO,(cTMPSE1)->E1_NUM,(cTMPSE1)->E1_PARCELA,"R",1,,(cTMPSE1)->E1_CLIENTE,(cTMPSE1)->E1_LOJA)
-
-		If !Empty((cTMPSE1)->E1_NUMBCO)
-			cBco := (cTMPSE1)->E1_PORTADO
-			aCB_RN_NN[3] := Alltrim((cTMPSE1)->E1_NUMBCO)
-			aCB_RN_NN[4] := Alltrim((cTMPSE1)->E1_XPIXURL)
-			aCB_RN_NN[5] := Alltrim((cTMPSE1)->E1_XPIXID)
-			aCB_RN_NN[6] := Alltrim((cTMPSE1)->E1_XPIXEMV)
-		EndIF
-
-		aDadosTit	:= {AllTrim((cTMPSE1)->E1_NUM)+AllTrim((cTMPSE1)->E1_PARCELA)		,;  // [1] Número do título
-		(cTMPSE1)->E1_EMISSAO                              	,;  // [2] Data da emissão do título
-		dDataBase                    					,;  // [3] Data da emissão do boleto
-		(cTMPSE1)->E1_VENCTO                               	,;  // [4] Data do vencimento
-		((cTMPSE1)->E1_SALDO-nVlrAbat+ (cTMPSE1)->E1_ACRESC - (cTMPSE1)->E1_DECRESC)                  	,;  // [5] Valor do título
-		aCB_RN_NN[3]                             	,;  // [6] Nosso número (Ver fórmula para calculo)
-		(cTMPSE1)->E1_PREFIXO                               	,;  // [7] Prefixo da NF
-		(cTMPSE1)->E1_TIPO	                           		}   // [8] Tipo do Titulo
-
-		If Empty((cTMPSE1)->E1_NUMBCO)
-			lRetBB := U_BEWS0002("GER",@aDadosEmp,aDadosTit,aDadosBanco,aDatSacado,aBolText,@aCB_RN_NN)
-		Else
-			lRetBB := .T.
-		EndIF
-
-		If lRetBB
-			DbSelectArea("SE1")
-			dbSetOrder(1)
-			SE1->(DBSeek(xFilial("SE1")+(cTMPSE1)->E1_PREFIXO+(cTMPSE1)->E1_NUM+(cTMPSE1)->E1_PARCELA))
-			If (Empty(SE1->E1_NUMBCO) .or. Empty(SE1->E1_AGEDEP) .or. Empty(SE1->E1_CONTA) .or. Empty(SE1->E1_PORTADO))
-				If RecLock("SE1",.f.)
-					SE1->E1_NUMBCO 	 := aCB_RN_NN[3]  // Nosso número (Ver fórmula para calculo)
-					SE1->E1_AGEDEP   := cAgeCNAB
-					SE1->E1_CONTA    := cCtaCNAB
-					SE1->E1_PORTADO  := cBcoCNAB
-					SE1->E1_HIST     := "BOLETO GERADO VIA API"
-					If !Empty(aCB_RN_NN[1]) .and. Empty(SE1->E1_CODBAR)
-						SE1->E1_CODBAR := Alltrim(aCB_RN_NN[1])
-						SE1->E1_CODDIG := Alltrim(aCB_RN_NN[2])
-					EndIF
-					MsUnlock()
-				EndIf
-			EndIf
-		Else
-			lImpBol := .F.
-			MsgInfo("Boleto não registrado!","BEFINM01")
-		Endif
-
-		(cTMPSE1)->(DBSkip())
-	Enddo
-
-	If lImpBol
-		//-- Inicia a impressão do boleto
-		U_BEFINR01(cPfxpr02,cNFpr01,cNFpr02,"","","",cNota,cSerie,cCodiC,cLojaC,cCamArq,@oDANFE,cBco,"")
-	EndIf
-
-	//-- Finaliza alias de trabalho
-	(cTMPSE1)->(DbCloseArea())
-
-	//-- Restaura a área de trabalho salva
-	RestArea(aAreaNF)
-
-Return
+	Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim)}, "Baixando...")
+	RestArea(aArea)
+return()
 
 
-/*/{Protheus.doc} GetBco
-
-    Retorna banco portador
-
-    @author  Igor Guimarães
-    @example Exemplos
-    @param   [Nome_do_Parametro],Tipo_do_Parametro,Descricao_do_Parametro
-    @return  Especifica_o_retorno
-    @table   Tabelas
-    @since   11-03-2024
+/*/{Protheus.doc} ValidPerg
+description
+@type function
+@version  
+@author Igor Guimarães
+@since 8/23/2024
+@return variant, return_description
 /*/
+Static Function ValidPerg()
 
-Static Function GetBco(cSerie, cNota)
+	Local lRet      := .F.
+	Local dDataDe   := FirstDate(Date())
 
-	Local lLogin    := Type("cEmpAnt") != "U"
-	Local cRet := ""
-	Local cTMPSE1 := GetNextAlias()
+	//Adiciona os parametros para a pergunta
 
-	If !lLogin
-		RpcSetEnv("01","01","Admin")
-	EndIf
+	AADD( aParBox , { 1 , "Dt Recebimento"  , dDataDe,  "", ".T.", "", ".T.", 80,  .F.})
 
-	BeginSql Alias cTMPSE1
-        SELECT
-            E1_PORTADO
-        FROM
-            SE1010
-        WHERE
-            e1_num = %Exp:cNota%
-            AND E1_SERIE = %Exp:cSerie%
-            AND D_E_L_E_T_ = ' '
-	EndSql
-	if !(cTMPSE1)->(eof())
-		cRet := (cTMPSE1)->E1_PORTADO
-	EndIf
-
-	(cTMPSE1)->(DbCloseArea())
-Return cRet
-
+	lRet := ParamBox(aParBox ,"Boleto Sicoob",aParRet)
+Return lRet
