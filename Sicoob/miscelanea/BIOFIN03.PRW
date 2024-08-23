@@ -381,29 +381,31 @@ User Function BOLGERA()
 		cSacado  :=  cNomeCli + "   " + " CPF/CPNJ: " + cCGCCli
 		cEndSac  :=  ALLTRIM(SA1->A1_END) + "," + ALLTRIM(SA1->A1_BAIRRO)
 		cEndSac1 :=  TRANSFORM(SA1->A1_CEP,"@R 99999-999") + " - " + ALLTRIM(SA1->A1_MUN) + " - " + SA1->A1_EST
-		//cEmail   :=  alltrim(SA1->A1_EMAIL)
 
-		aDatSacado   := {cNomeCli             ,;   	// [1]Razão Social
-		AllTrim(QRY->E1_CLIENTE )+"-"+QRY->E1_LOJA              ,;   	// [2]Código
-		STRTRAN(AllTrim(SA1->A1_END),"-"," "),;                       	// [3]Endereço
-		AllTrim(SA1->A1_MUN)	                            ,;   	// [4]Cidade
-		SA1->A1_EST	                                    ,;   	// [5]Estado
-		cvaltochar(val(SA1->A1_CEP))                                        ,;   	// [6]CEP
-		SA1->A1_CGC										    ,;		// [7]CGC
-		SA1->A1_PESSOA									    ,;      // [8]PESSOA
-		STRTRAN(AllTrim(SA1->A1_BAIRRO),"-"," ")          }
+		aDatSacado   := { cNomeCli                 ,;   	// [1]Razão Social
+		AllTrim(QRY->E1_CLIENTE )+"-"+QRY->E1_LOJA ,;   	// [2]Código
+		STRTRAN(AllTrim(SA1->A1_END),"-"," ")      ,;       // [3]Endereço
+		AllTrim(SA1->A1_MUN)	                   ,;   	// [4]Cidade
+		SA1->A1_EST	                               ,;   	// [5]Estado
+		cvaltochar(val(SA1->A1_CEP))               ,;   	// [6]CEP
+		SA1->A1_CGC								   ,;		// [7]CGC
+		SA1->A1_PESSOA							   ,;       // [8]PESSOA
+		STRTRAN(AllTrim(SA1->A1_BAIRRO),"-"," ")    }       // [9]BAIRRO
+
+
 		SA1->(DbCloseArea())
 
 		nVlrAbat    :=  SomaAbat(QRY->E1_PREFIXO,QRY->E1_NUM,QRY->E1_PARCELA,"R",1,,QRY->E1_CLIENTE,QRY->E1_LOJA)
 		nValorReal  := (QRY->E1_SALDO-nVlrAbat+ QRY->E1_ACRESC - QRY->E1_DECRESC)
-		aDadosTit	:= {AllTrim(QRY->E1_NUM)+AllTrim(QRY->E1_PARCELA)		,;  // [1] Número do título
-		QRY->E1_EMISSAO                              	,;  // [2] Data da emissão do título
-		dDataBase                    					,;  // [3] Data da emissão do boleto
-		QRY->E1_VENCTO                               	,;  // [4] Data do vencimento
-		nValorReal                	,;  // [5] Valor do título
-		aDados[13]                             	,;  // [6] Nosso número (Ver fórmula para calculo)
-		QRY->E1_PREFIXO                               	,;  // [7] Prefixo da NF
-		QRY->E1_TIPO	                           		}   // [8] Tipo do Titulo
+
+		aDadosTit	:= {AllTrim(QRY->E1_NUM)+AllTrim(QRY->E1_PARCELA)	,;  // [1] Número do título
+		QRY->E1_EMISSAO                              	                ,;  // [2] Data da emissão do título
+		dDataBase                    					                ,;  // [3] Data da emissão do boleto
+		QRY->E1_VENCTO                               	                ,;  // [4] Data do vencimento
+		nValorReal                	                                    ,;  // [5] Valor do título
+		aDados[13]                             	                        ,;  // [6] Nosso número (Ver fórmula para calculo)
+		QRY->E1_PREFIXO                               	                ,;  // [7] Prefixo da NF
+		QRY->E1_TIPO}                                                       // [8] Tipo do Titulo
 
 		//se esse título for de outro banco ele não irá imprimir
 		If !Empty(alltrim(QRY->E1_PORTADO))
@@ -417,6 +419,7 @@ User Function BOLGERA()
 			endif
 		endif
 
+		//Integração para registrar a cobrança no Sicoob.
 		IF cBanco== "756" .and. Empty(QRY->E1_XQRCODE)//sicoob
 			lRet := U_BEWS0002("GER",aDadosEmp,aDadosTit,@aBancos,nPOS,aDatSacado,aBolText,@aDados)
 			If !lRet
@@ -429,7 +432,6 @@ User Function BOLGERA()
 			aDados[38] := Alltrim(QRY->E1_XQRCODE)
 			aDados[13] := Alltrim(QRY->E1_NOSNUM)
 		Endif
-
 
 		//Verificando Abatimento dos títulos
 		nAbatim	:= 0
@@ -485,6 +487,7 @@ User Function BOLGERA()
 		ELSE
 			aDados[9] := QRY->E1_PREFIXO + QRY->E1_NUM + "/" +  QRY->E1_PARCELA + QRY->E1_TIPO   //Numero do documento
 		ENDIF
+
 		IF cBanco == '001' .or. cBanco == '237'
 			aDados[10]:= 'DM'	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
 		endif
@@ -543,10 +546,8 @@ User Function BOLGERA()
 
 		//Tratando Juros / Desconto /Multa - Mensagens
 		IF cJuros > 0
-
 			xValJurMes := cJuros/100				//juros Mes
 			aDados[31] := xValJurMes				//Valor dos Juros
-
 		ENDIF
 
 		If cJurDia > 0
@@ -598,7 +599,9 @@ User Function BOLGERA()
 
 				End Do
 			endif
+			SE5QRY->(DbCloseArea())
 		endif
+
 
 		//Atualiza campos
 		cChave :=	QRY->E1_CLIENTE+QRY->E1_LOJA+QRY->E1_PREFIXO+QRY->E1_NUM+QRY->E1_PARCELA+QRY->E1_TIPO
@@ -639,13 +642,12 @@ description
 //Gera a classe de impressao do boleto
 @type function
 @version  
-@author iglal
+@author BioExtratus
 @since 8/16/2024
-@param aDados, array, param_description
-@param aBancos, array, param_description
-@param nPOS, numeric, param_description
-@param oPrn, object, param_description
-@return variant, return_description
+@param aDados, array, Dados do Título
+@param aBancos, array, Dados do Banco
+@param nPOS, numeric, posição do array 
+@param oPrn, object, objeto de impressão
 /*/
 Static Function printBolet(aDados, aBancos, nPOS, oPrn)
 
@@ -824,7 +826,6 @@ Static Function printBolet(aDados, aBancos, nPOS, oPrn)
 
 		oPrn:FWMSBAR("INT25" /*cTypeBar*/,52.3/*nRow*/ ,2.2/*nCol*/, aDados[2]/*cCode*/,oPrn/*oBolNota*/,.F./*lCheck*/,/*Color*/,.T./*lHorz*/,0.025/*nWidth*/,1.5/*nHeigth*/,.F./*lBanner*/,"Arial"/*cFont*/,NIL/*cMode*/,.F./*lPrint*/,2/*nPFWidth*/,2/*nPFHeigth*/,.F./*lCmtr2Pix*/)
 
-
 		nAjust2 := -800
 		nAnt    := nAjust2
 	Next I
@@ -845,7 +846,7 @@ description
 Static Function checkBanc(cBanco)
 
 	Local nPOS := 0
-	nPOS	:= ASCAN(aBancos,{|x| x[1]==cBanco})
+	nPOS := ASCAN(aBancos,{|x| x[1]==cBanco})
 
 Return nPos
 
@@ -892,7 +893,7 @@ Static Function atuaCampos(cChave, aBancos, bPulou)
 	DBSeek(XFILIAL("SE1")+cChave, .T.)
 
 	//Verifica se o título já está em algum borderô
-	If (Empty(SE1->E1_NUMBOR))
+	If (Empty(SE1->E1_NUMBOR)) .and. aBancos[1] <> "756"
 
 		//Cria e busca o numero do próximo borderô para esse título
 		cNumBor := BuscaBord(cBanco, cAgencia ,cConta, cChave)
