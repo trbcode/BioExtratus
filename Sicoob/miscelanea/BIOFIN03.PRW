@@ -175,8 +175,8 @@ User Function NOPRINT()
 
 	cMarc := ""
 	oMark:CleanFilter()
-	oMark:SetFilterDefault(" E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_NATUREZ <> '102' " ;
-		+ " .AND. 	 E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'")
+	/*oMark:SetFilterDefault(" E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_NATUREZ <> '102' " ;
+		+ " .AND. 	 E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'")*/
 	oMark:Refresh()
 
 Return Nil
@@ -193,8 +193,8 @@ User Function BOLIMP()
 
 	cMarc := ""
 	oMark:CleanFilter()
-	oMark:SetFilterDefault(" E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_NATUREZ <> '102' ";
-		+" .AND.	 E1_XXBOIMP = 'S' .AND. E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'")
+	/*oMark:SetFilterDefault(" E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_NATUREZ <> '102' ";
+		+" .AND.	 E1_XXBOIMP = 'S' .AND. E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'")*/
 	oMark:Refresh()
 
 Return Nil

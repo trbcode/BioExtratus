@@ -158,7 +158,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oJsonSicoob :=  JsonObject():New()
 		oJsonSicoob['numeroContrato']  := val(cCodConv)
 		oJsonSicoob['modalidade']      := 1
-		oJsonSicoob['nossoNumero']     := val(SE1->E1_NOSNUM)
+		oJsonSicoob['nossoNumero']     := val(strtran(SE1->E1_NOSNUM,"-",""))
 		oJsonSicoob['seuNumero']       := Alltrim(SE1->E1_NUM)+Alltrim(SE1->E1_PARCELA)
 
 		cBody := EncodeUTF8(oJsonSicoob:ToJson())
@@ -168,16 +168,14 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oResponse:fromJson(FwNoAccent(cResponse))
 		if oResponse['resultado'][1]['status']['codigo'] == 200 .or. (oResponse['resultado'][1]['status']['codigo'] == 400 .and. "processo de baixa" $ oResponse['resultado'][1]['status']['mensagem'])
 
-			cMsg := '<font color="#0F0F00" size="20">Cancelamento da cobrança do título '+ oResponse['resultado'][1]['boleto']['seuNumero']+', realizado com sucesso!</font>'
+			cMsg := '<font color="#0F0F00" size="16">Cancelamento da cobrança do título '+ oResponse['resultado'][1]['boleto']['seuNumero']+', realizado com sucesso!</font>'
 			cMsg += '<br>'
-			cMsg += '<font color="#AD2121" size="20">O Sicoob pode levar algum tempo para processar este cancelamento!</font>'
+			cMsg += '<font color="#AD2121" size="16">O Sicoob pode levar algum tempo para processar este cancelamento!</font>'
 
 			FWAlertSuccess(cMsg, "Retorno Sicoob-BEWS0002")
 			lRet := .T.
-			Return lRet
 		else
-			FWAlertWarning("Falha ao cancelar cobrança!", "Retorno Sicoob-BEWS0002")
-			Return lRet
+			FWAlertWarning("Falha ao cancelar cobrança! "+ oResponse['resultado'][1]['status']['mensagem'], "Retorno Sicoob-BEWS0002")
 		endif
 
 	elseif lBaixa
@@ -208,23 +206,33 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 				oResp:= JsonObject():new()
 				oResp:fromJson(FwNoAccent(cPostRet))
 
-				if oResp['resultado']['quantidadeArquivo'] > 0
-					cPath := "/boletos/movimentacao-download"
-					for nZ := 1 to Len(oResp['resultado']['idArquivos'])
-						_cParams := cParams+"&idArquivo="+cValtoChar(oResp['resultado']['idArquivos'][nZ])
-						cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, _cParams, nTimeOut, aHeader, @cHeaderGet)
-						oRespZip:= JsonObject():new()
-						oRespZip:fromJson(FwNoAccent(cPostRet))
-						if !Empty(oRespZip['resultado']['arquivo'])
-							cNomeArq := substr(oRespZip['resultado']['nomeArquivo'],1,len(oRespZip['resultado']['nomeArquivo'])-4)
-							cArquivo := cDir+cNomeArq+".zip"
-							cDecode  := Decode64(oRespZip['resultado']['arquivo'])
-							MemoWrite(cArquivo,cDecode)
-							FUnzip( cArquivo, cDir)
-							FRename(cDir+cNomeArq+".json", cDir+cNNomArq+".json")
-						endif
-					next nZ
-				endif
+
+				if !valtype(oResp['mensagens']) =="A"
+					if oResp['resultado']['quantidadeArquivo'] > 0
+						cPath := "/boletos/movimentacao-download"
+						for nZ := 1 to Len(oResp['resultado']['idArquivos'])
+							_cParams := cParams+"&idArquivo="+cValtoChar(oResp['resultado']['idArquivos'][nZ])
+							cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, _cParams, nTimeOut, aHeader, @cHeaderGet)
+							oRespZip:= JsonObject():new()
+							oRespZip:fromJson(FwNoAccent(cPostRet))
+							if !Empty(oRespZip['resultado']['arquivo'])
+								cNomeArq := substr(oRespZip['resultado']['nomeArquivo'],1,len(oRespZip['resultado']['nomeArquivo'])-4)
+								cArquivo := cDir+cNomeArq+".zip"
+								cDecode  := Decode64(oRespZip['resultado']['arquivo'])
+								MemoWrite(cArquivo,cDecode)
+								FUnzip( cArquivo, cDir)
+								FRename(cDir+cNomeArq+".json", cDir+cNNomArq+".json")
+							endif
+						next nZ
+
+					endif
+				Else
+					if !IsBlind()
+						FWAlertWarning("Falha ao baixar títulos recebidos! "+ oResp['mensagens'][1]['codigo']+" - "+ oResp['mensagens'][1]['mensagem'], "Retorno Sicoob-BEWS0002")
+					else
+						FWLogMsg("ERROR", "", "Erro", "BEWS0002", "", "", EncodeUTF8("Erro ao baixar titulo com o nosso numero "+cNosso+"!") , 0, 0)
+					endIf
+				EndIf
 			endif
 		endif
 
