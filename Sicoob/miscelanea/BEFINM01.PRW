@@ -94,7 +94,14 @@ Static Function ValidPerg()
 
 	Local lRet      := .F.
 	Local dDataDe   := Date()-1
+	Local nX
 
+	for nX:= 1 to 7
+		if datavalida(DATE()-nX) <> DATE()
+			dDataDe := DATE()-nX
+			exit
+		endif
+	Next nX
 	//Adiciona os parametros para a pergunta
 
 	AADD( aParBox , { 1 , "Dt Recebimento"  , dDataDe,  "", ".T.", "", ".T.", 80,  .F.})
