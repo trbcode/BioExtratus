@@ -74,6 +74,12 @@ user function F040ALT()
 			dbSetOrder(1)  // A1_FILIAL   +A1_COD          +A1_LOJA
 			dbSeek(  xFilial("SA1")+SE1->E1_CLIENTE +SE1->E1_LOJA, .T.)
 
+			RecLock("SE1",.F.)
+			Replace SE1->E1_XQRCODE  with aDados[38]                    //QRCode
+			Replace SE1->E1_CODBAR   with aDados[2]                     // Código de Barra
+			Replace SE1->E1_CODDIG   with aDados[3]                     // Linha Digitável
+			MsUnLock()
+
 			cNomeCli :=  alltrim(SA1->A1_NOME)
 			cCGCCli  :=  If(SA1->A1_TIPO=="F",Transform(SA1->A1_CGC, "@R 999.999.999-99"),Transform(SA1->A1_CGC, "@R 99.999.999/9999-99"))
 			cSacado  :=  cNomeCli + "   " + " CPF/CPNJ: " + cCGCCli
@@ -86,8 +92,6 @@ user function F040ALT()
 				+ ' - ' + alltrim(SM0->M0_ESTCOB) + ', Cep: ' + TRansform(SM0->M0_CEPCOB, "@R 99999-999")
 
 			aDados[1] := aBancos[nPOS][3]
-			//aDados[2] := Alltrim(SE1->E1_CODBAR)
-			//aDados[3] := Alltrim(SE1->E1_CODDIG)
 			aDados[4] := 'Pague preferencialmente no SICOOB.'  			// Local de pagamento
 			aDados[5] := substr(dtos(SE1->E1_VENCREA),7,2)+"/"+substr(dtos(SE1->E1_VENCREA),5,2)+"/"+substr(dtos(SE1->E1_VENCREA),1,4)	//Vencimento
 			aDados[6] :=  cNomeCed                                     //Nome do Cedente
@@ -102,7 +106,6 @@ user function F040ALT()
 			aDados[15]:= "REAL"                             //Moeda/espécie
 			aDados[16]:= ""                                 //Quantidade de moeda variável
 			aDados[17]:= TRANSF(nValorReal,"@E 999,999.99")	//Valor do Título    (calculado - descrescimos + acrescimentos - abatimentos)
-			//aDados[38] := Alltrim(SE1->E1_XQRCODE)
 			aDados[13] := Alltrim(SE1->E1_NOSNUM)
 			aDados[18]:=  ""                                //Instruções  //Verificar
 			aDados[19]:=  ""                                //Desconto / Abatimento		//Não preencher
