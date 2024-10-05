@@ -36,23 +36,54 @@ Geração de Boletos
 @example Usa GRUPO DE PERGUNTAS : BIOFIN03
 @see \\192.168.101.5\protheus\Manuais de Usuário\PROTHEUS 010 - Boleto e CNAB BB\Manual do Usuário - Boleto BioExtratus.pdf
 /*/
-User Function BIOFIN03()
+User Function BIOFIN03(cTpBol)
 
-	private cDataInicio := '20150608'
+	private cDataInicio := '20240918'
 	Private oMark	              //Para controle da seleção (check)
+	private cTipo		:= Alltrim(cTpBol)
 	Private aBancos   	:= {}     //Array usado em todas as funções que conterá dados do banco selecionado
 	Private aDados[38]            //Array usado para receber os dados do boleto atual
 	Private cTitulos              //Titulos que foram selecionados
 	Private cMarc    	:= ""     //Titulos marcados
-	Private cTodos 		:= "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND.E1_NATUREZ <> '102'.AND.E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
 	Private aRotina  	:= MenuDef()
-	//private aAux 		:= {}
 	Private lLogin      := Type("cEmpAnt") != "U"
+	Private cNoPrint := ""
+	private CTdos := ""
 
 	If !lLogin
 		RpcSetEnv("01","01","Admin")
 	EndIf
 
+	if alltrim(cTipo) ==''
+		cTipo := 'BIO'
+	end if
+
+	IF cTipo == 'BIO'
+		cBanco   := "756"
+		cAgencia := "4108 "
+		cConta   := "8429      "
+		cCodClie := "e24ab947-b2b6-4c55-86fb-2662a014a63b"
+		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+		cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+	ELSEIF cTipo == 'FUP'
+		cBanco   := GetMV("MV_XXFUPBA")
+		cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
+		cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
+		cCodClie := "28477a68-ed9d-43a6-8e97-9a161917e7ca"
+		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
+		cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
+
+	ELSEIF cTipo == 'FUPCHK'
+		cBanco   := GetMV("MV_XXFCHBA")
+		cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
+		cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
+		cCodClie := "b7e6001d-1131-4687-a8b5-c7262f146f89"
+		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
+		cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
+	ENDIF
+
+
+	//MsgInfo("00 - ESSA É A NOVA TELA DE REGISTRO DE BOLETOS!", "ATENCAO!")
 	//Instancia a classe com objeto de browse com marcação
 	oMark := FWMarkBrowse():New()
 
@@ -83,6 +114,8 @@ User Function BIOFIN03()
 	oMark:Activate()
 	cMarc := ''
 
+
+
 Return Nil
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -98,15 +131,19 @@ description
 Static Function MenuDef()
 
 	Local aRotina := {}
+	Local aSubMnu := {}
+
 
 	ADD OPTION aRotina TITLE 'Verificar NCC'   	ACTION 'U_VerNCC()'     OPERATION 3 ACCESS 0
-	ADD OPTION aRotina TITLE 'Gerar Boletos'   	ACTION 'U_BOLGERA()'    OPERATION 2 ACCESS 0
-	ADD OPTION aRotina TITLE 'Todos'        	ACTION 'U_BOLTODOS()'   OPERATION 3 ACCESS 0
-	ADD OPTION aRotina TITLE 'Nao Impressos'    ACTION 'U_NOPRINT()'  	OPERATION 3 ACCESS 0
-	ADD OPTION aRotina TITLE 'Não enviados ao Banco'	ACTION 'U_BOLIMP()'     OPERATION 3 ACCESS 0
-	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC()'    OPERATION 1 ACCESS 0
+	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie  )'    OPERATION 2 ACCESS 0
+	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
-	ADD OPTION aRotina TITLE 'Baixas Sicoob'	ACTION 'U_BEFINM01()'   OPERATION 1 ACCESS 0//
+/*	ADD OPTION aRotina TITLE 'Baixas Sicoob'	ACTION 'U_BEFINM01()'   OPERATION 1 ACCESS 0// */
+
+	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
+
+	ADD OPTION aSubMnu TITLE 'Todos'        	ACTION 'U_BOLTODOS()'   OPERATION 3 ACCESS 0
+	ADD OPTION aSubMnu TITLE 'Não enviados ao Banco'	ACTION 'U_NOPRINT()'     OPERATION 3 ACCESS 0
 Return aRotina
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 /*/{Protheus.doc} markBol
@@ -154,12 +191,10 @@ description
 @return variant, return_description
 /*/
 User Function BOLTODOS()
-
 	cMarc := ""
 	oMark:CleanFilter()
 	oMark:SetFilterDefault(cTodos)
 	oMark:Refresh()
-
 Return Nil
 
 /*/{Protheus.doc} NOPRINT
@@ -172,31 +207,10 @@ description
 @return variant, return_description
 /*/
 User Function NOPRINT()
-
 	cMarc := ""
 	oMark:CleanFilter()
-	/*oMark:SetFilterDefault(" E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_NATUREZ <> '102' " ;
-		+ " .AND. 	 E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'")*/
+	oMark:SetFilterDefault(cNoPrint)
 	oMark:Refresh()
-
-Return Nil
-
-/*/{Protheus.doc} BOLIMP
-description
-@type function
-@version  
-@author iglal
-@since 8/16/2024
-@return variant, return_description
-/*/
-User Function BOLIMP()
-
-	cMarc := ""
-	oMark:CleanFilter()
-	/*oMark:SetFilterDefault(" E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_NATUREZ <> '102' ";
-		+" .AND.	 E1_XXBOIMP = 'S' .AND. E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'")*/
-	oMark:Refresh()
-
 Return Nil
 
 /*/{Protheus.doc} BOLGERA
@@ -208,7 +222,7 @@ description
 @since 8/16/2024
 @return variant, return_description
 /*/
-User Function BOLGERA()
+User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 
 	local lRet       := .f.
 	local nVlrAbat   := 0
@@ -216,47 +230,13 @@ User Function BOLGERA()
 	local aDadosTit  := {}
 	local aDatSacado := {}
 	local aBolText   := {"","",""}
-	private cBanco   := ""
-	private cAgencia := ""
-	private cConta   :=  ""
 	private cPerg2	:= "BIOFIN03"
 	private cFilePrint := ""
 
-
 	IF SE1->E1_XXBOIMP <> 'S' .AND. SM0->M0_CODIGO == '01'
-
 		//Procura se o banco selecionado está no array de bancos com boletos desenvolvidos e retorna os dados do banco
 		setBanc()   //Seta o array de bancos
-		nPOS := checkBanc(alltrim("756"))
-
-		cBanco   := "756"
-		cAgencia := "4108 "
-		cConta   := "8429      "
-
-	ELSEIF SE1->E1_XXBOIMP <> 'S' .AND. SM0->M0_CODIGO == '20'
-
-		If Pergunte(cPerg2,.T.)
-			If Empty(alltrim(mv_par01))
-				MsgAlert("Escolha o banco para qual deseja gerar os boletos!","STOP")
-				return
-			endif
-		endif
-
-		setBanc()   //Seta o array de bancos
-		nPOS := checkBanc(alltrim(mv_par01))
-		cBanco   := mv_par01
-		cAgencia := mv_par02
-		cConta   := mv_par03
-
-	Else
-
-		setBanc()   //Seta o array de bancos
-		nPOS := checkBanc(alltrim(SE1->E1_PORTADO))
-
-		cBanco   := SE1->E1_PORTADO
-		cAgencia := SE1->E1_AGEDEP
-		cConta   := SE1->E1_CONTA
-
+		nPOS := checkBanc(alltrim(cBanco))
 	ENDIF
 
 	//PADRONIZAÇÃO - PADRONIZANDO PARA UM BANCO SOMENTE
@@ -315,7 +295,7 @@ User Function BOLGERA()
 	//Buscando parâmetros de banco  e atualizando o array de bancos
 	dbSelectArea("SEE")
 	dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
-	dbSeek(         XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
+	dbSeek(         XFILIAL('SEE')	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
 
 	If SEE->(Eof())
 		Alert("As configurações de banco que você selecionou não foram encontradas na tabela de parâmetros de banco (SEE) - ";
@@ -421,7 +401,9 @@ User Function BOLGERA()
 
 		//Integração para registrar a cobrança no Sicoob.
 		IF cBanco== "756" .and. Empty(QRY->E1_XQRCODE)//sicoob
-			lRet := U_BEWS0002("GER",aDadosEmp,aDadosTit,@aBancos,nPOS,aDatSacado,aBolText,@aDados)
+			//(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolText,aDados,dDtaBx,cDatIni,cDatFim, cCodClie, cNossoNum)
+			cNossoNum  := U_MONTANUM (cBanco, alltrim(cCodEmp), cFaixaAtu, cFaixaFim, aBancos[nPOS])
+			lRet := U_BEWS0002("GER",aDadosEmp,aDadosTit,@aBancos,nPOS,aDatSacado,aBolText,@aDados, , , , cCodClie,cNossoNum)
 			If !lRet
 				MsgInfo("Boleto não registrado!","BEFINM01")
 				return // igor - provisório até definir regra
@@ -622,7 +604,7 @@ User Function BOLGERA()
 		SEE->(DbCloseArea())
 
 		//Chamando o método de impressão passando o array de Dados
-		printBolet(aDados, aBancos, nPOS, oPrn)
+		u_printBolet(aDados, aBancos, nPOS, oPrn,cbanco)
 
 		QRY->(DbSkip())
 		oPrn:EndPage()
@@ -649,9 +631,10 @@ description
 @param nPOS, numeric, posição do array 
 @param oPrn, object, objeto de impressão
 /*/
-Static Function printBolet(aDados, aBancos, nPOS, oPrn)
+User Function printBolet(aDados, aBancos, nPOS, oPrn,cbanco)
 
 	local I 	:=""
+	local aArea := GetArea()
 
 	//Variaveis de Fontes a serem utilizadas para impressao dos boletos
 	oFntTim22N  := TFont():New( "Times New Roman"   ,,22,,.t.,,,,,.f. )
@@ -829,6 +812,8 @@ Static Function printBolet(aDados, aBancos, nPOS, oPrn)
 		nAjust2 := -800
 		nAnt    := nAjust2
 	Next I
+
+	RestArea(aArea)
 
 Return
 
@@ -1051,7 +1036,7 @@ description
 @since 8/16/2024
 @return variant, return_description
 /*/
-User Function BOLCANC()
+User Function BOLCANC(cCodClie)
 
 	Local nX
 	Local cMsgMail	:= ""
@@ -1167,7 +1152,7 @@ User Function BOLCANC()
 					MsUnLock()
 
 					IF QRY1->E1_PORTADO == "756"//sicoob
-						lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados)
+						lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados, , , , cCodClie)
 						If !lRet
 							MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao SICOOB . Comunique a Equipe Protheus!", "ATENCAO!")
 						EndIf
@@ -1191,7 +1176,7 @@ User Function BOLCANC()
 				SEA->(DbCloseArea())
 			Else
 				IF QRY1->E1_PORTADO == "756" //sicoob
-					lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados)
+					lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados, , , , cCodClie)
 					If !lRet
 						MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao SICOOB . Comunique a Equipe Protheus!", "ATENCAO!")
 					EndIf
@@ -1201,7 +1186,7 @@ User Function BOLCANC()
 			//Ainda não gerou borderô ou cancelou titulo do borderô - poderá excluir
 		Else
 			IF QRY1->E1_PORTADO == "756" //sicoob
-				lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados)
+				lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados, , , , cCodClie)
 				If !lRet
 					MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao SICOOB . Comunique a Equipe Protheus!", "ATENCAO!")
 				EndIf
@@ -1277,6 +1262,7 @@ User Function VerNCC()
 	cQuery += "             	 FROM  " + RetSqlName("SE1") + "   AS SE1      	" + CRLF
 	cQuery += "             	 WHERE E1_FILIAL = '" + xFilial("SE1") + "'    	" + CRLF
 	cQuery += "                   	AND  SE1.E1_TIPO = 'NF'                    	" + CRLF
+	cQuery += "                   	AND SE1.E1_XXBOIMP <> 'S'                   " + CRLF
 	cQuery += "             	  	AND SE1.E1_SALDO > 0                       	" + CRLF
 	cQuery += "             	  	AND SE1.E1_EMISSAO >= '"+cDataInicio + "'  	" + CRLF
 	cQuery += "             	  	AND SE1.D_E_L_E_T_=''                      	" + CRLF
@@ -1289,6 +1275,10 @@ User Function VerNCC()
 	cQuery += " 	 	 	WHEN E1_XXTPDEV = '2' THEN 'Avaria / Remanescente' 	" + CRLF
 	cQuery += " 	 		ELSE ' - '                                         	" + CRLF
 	cQuery += " 	 	END                                                    	" + CRLF
+
+	// Grava a consulta no protheus_data\logbio\
+	MemoWrite( SuperGetMV("BE_LOGDIR", , "\logbio\") + 'BIOFIN03_VERNCC' + "_cQry.sql", cQuery  )
+
 
 	If Select('QRY') <> 0
 		QRY->(DbCloseArea())

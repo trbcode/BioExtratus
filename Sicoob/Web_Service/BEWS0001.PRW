@@ -20,7 +20,7 @@ Objetivo: Gerar Chave Token
     @since   29/05/2024
 /*/
 
-User Function BEWS0001()
+User Function BEWS0001(cClientId)
 
 	Local cURL      := "https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token"
 	Local nTimeOut  := 120
@@ -30,7 +30,6 @@ User Function BEWS0001()
 	Local cKey 	    := SuperGetMV("BE_CHVKEY",.T.,"\certs\000002_key.pem")
 	Local cCert     := SuperGetMV("BE_CHVCER",.T.,"\certs\000002_cert.pem")
 	Local cAc_Token := ""
-	Local cClientId := SuperGetMV("BE_CLISICO",.T.,"9b5e603e428cc477a2841e2683c92d21")
 	Local cPSWBIO   := GETMV("BE_PSWSICO") // informar a senha
 	Local lLogin  := Type("cEmpAnt") != "U"
 

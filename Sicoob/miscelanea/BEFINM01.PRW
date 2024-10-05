@@ -18,7 +18,7 @@ Executa baixas dos títulos  Sicoob
 (examples)
 @see (links_or_references)
 /*/
-User Function BEFINM01()
+User Function BEFINM01(cTipo)
 
 	Local aArea     := GetArea()
 	Local lLogin    := Type("cEmpAnt") != "U"
@@ -26,34 +26,55 @@ User Function BEFINM01()
 	Local cDatIni   := ""
 	Local cDatFim   := ""
 	Local aBancos   := {}
-	Local cBcoCNAB  := ""
-	Local cAgeCNAB  := ""
-	Local cCtaCNAB  :=  ""
 	Local nPOS      := 1
+	local cBanco   := ""
+	local cAgencia := " "
+	local cConta   := "      "
+
 	Private aParBox := {}
 	Private aParRet := {}
+
 
 	if !lLogin
 		RpcSetEnv("01","01","Admin")
 	endif
 
-	cBcoCNAB  := PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
-	cAgeCNAB  := PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4108" )),TAMSX3("A6_AGENCIA")[1])
-	cCtaCNAB  := PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "8429" )),TAMSX3("A6_NUMCON")[1])
+	if alltrim(cTipo) ==''
+		cTipo := 'BIO'
+	end if
+
+	IF cTipo == 'BIO'
+		cBanco   := "756"
+		cAgencia := "4108 "
+		cConta   := "8429      "
+		cCodClie  := "e24ab947-b2b6-4c55-86fb-2662a014a63b"
+	ELSEIF cTipo == 'FUP'
+		cBanco   := GetMV("MV_XXFUPBA")
+		cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
+		cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
+		cCodClie  := "28477a68-ed9d-43a6-8e97-9a161917e7ca"
+
+		// FUPROM - Chikas
+	ELSEIF cTipo == 'FUPCHK'
+		cBanco   := GetMV("MV_XXFCHBA")
+		cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
+		cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
+		cCodClie  := "b7e6001d-1131-4687-a8b5-c7262f146f89"
+	ENDIF
 
 	AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
 
 	//Buscando parâmetros de banco  e atualizando o array de bancos
 	dbSelectArea("SEE")
 	dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
-	dbSeek( XFILIAL("SEE")	+ cBcoCNAB    + cAgeCNAB   + cCtaCNAB   +  '001',     .T.)
+	dbSeek( XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
 
-	aBancos[nPOS][5]	 :=  alltrim(SEE->EE_DVAGE)
+	aBancos[nPOS][5]	 := alltrim(SEE->EE_DVAGE)
 	aBancos[nPOS][6]    :=  alltrim(SEE->EE_DVCTA)
-	aBancos[nPOS][7]    :=  alltrim(cCtaCNAB) + alltrim(SEE->EE_DVCTA)
+	aBancos[nPOS][7]    :=  alltrim(SEE->EE_CONTA) + alltrim(SEE->EE_DVCTA)
 	aBancos[nPOS][8]    :=  alltrim(SEE->EE_CODEMP)
-	aBancos[nPOS][9]    :=  cCtaCNAB
-	aBancos[nPOS][10]   :=  cAgeCNAB
+	aBancos[nPOS][9]    :=  cConta
+	aBancos[nPOS][10]   :=  cAgencia
 	aBancos[nPOS][12]   :=  alltrim(SEE->EE_XXCARTE)
 	aBancos[nPOS][13]   :=  alltrim(SEE->EE_FAXFIM)
 	aBancos[nPOS][15]   :=  SEE->EE_XXTXJUR
@@ -77,7 +98,7 @@ User Function BEFINM01()
 		cDatFim := cDatIni
 	endif
 
-	Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim)}, "Baixando...")
+	Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim, cCodClie)}, "Baixando...")
 	RestArea(aArea)
 return()
 

@@ -34,8 +34,22 @@
 		{
 			"args": [],
 			"label": "u_BEFINM01"
+		},
+		{
+			"args": [
+				"BIO"
+			],
+			"label": "u_BEFINM01"
+		},
+		{
+			"args": [
+				"BIO"
+			],
+			"label": "u_BIOFIN03"
 		}
 	],
 	"lastProgramExecuted": "SIGAMDI",
-	"lastProgramArguments": []
+	"lastProgramArguments": [
+		"BIO"
+	]
 }
