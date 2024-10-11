@@ -12,7 +12,7 @@ O ponto de entrada F040ALT valida os dados da alteração apos a confirmação da me
 @since 10/2/2024
 @return variant, return_description
 /*/
-user function F040ALT()
+user function FA040ALT()
 
 	Local lRet        := .T.
 	Local aBancos     := {}
@@ -27,7 +27,7 @@ user function F040ALT()
 	Local nValorReal  := (SE1->E1_SALDO-nVlrAbat+ SE1->E1_ACRESC - SE1->E1_DECRESC)
 	Local cFilePrint := ""
 
-	if NOLDVENREA <> SE1->E1_VENCREA
+	if NOLDVENREA <> M->E1_VENCREA
 
 		AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
 		//Buscando parâmetros de banco  e atualizando o array de bancos
@@ -58,15 +58,16 @@ user function F040ALT()
 		aBancos[nPOS][16]   :=  SEE->EE_XXTXJDI
 		SEE->(DbCloseArea())
 
-		aDadosTit	:= {AllTrim(SE1->E1_NUM)+AllTrim(SE1->E1_PARCELA)	,;  // [1] Número do título
-		SE1->E1_EMISSAO                              	                ,;  // [2] Data da emissão do título
-		dDataBase                    					                ,;  // [3] Data da emissão do boleto
-		SE1->E1_VENCREA                               	                ,;  // [4] Data do vencimento
-		nValorReal                	                                    ,;  // [5] Valor do título
+		aDadosTit   := {AllTrim(SE1->E1_NUM)+AllTrim(SE1->E1_PARCELA)   ,;  // [1] Número do título
+		SE1->E1_EMISSAO                                                 ,;  // [2] Data da emissão do título
+		dDataBase                                                       ,;  // [3] Data da emissão do boleto
+		M->E1_VENCREA                                                 ,;  // [4] Data do vencimento
+		nValorReal                                                      ,;  // [5] Valor do título
 		STRTRAN(alltrim(SE1->E1_NOSNUM),"-","")                         ,;  // [6] Nosso número (Ver fórmula para calculo)
-		SE1->E1_PREFIXO                               	                ,;  // [7] Prefixo da NF
+		SE1->E1_PREFIXO                                                 ,;  // [7] Prefixo da NF
 		SE1->E1_TIPO                                                    ,;  // [8] Tipo do Titulo
-		SE1->R_E_C_N_O_ }                                                   // [9] Recno
+		SE1->(Recno()) }                                                   // [9] Recno                                                    // [8] Tipo do Titulo
+
 
 		IF U_BEWS0002("ALT",,aDadosTit,aBancos,nPOS,,,@aDados,,,,cCodClie,STRTRAN(alltrim(SE1->E1_NOSNUM),"-",""))
 
@@ -74,11 +75,11 @@ user function F040ALT()
 			dbSetOrder(1)  // A1_FILIAL   +A1_COD          +A1_LOJA
 			dbSeek(  xFilial("SA1")+SE1->E1_CLIENTE +SE1->E1_LOJA, .T.)
 
-			RecLock("SE1",.F.)
+			/*RecLock("SE1",.F.)
 			Replace SE1->E1_XQRCODE  with aDados[38]                    //QRCode
 			Replace SE1->E1_CODBAR   with aDados[2]                     // Código de Barra
 			Replace SE1->E1_CODDIG   with aDados[3]                     // Linha Digitável
-			MsUnLock()
+			MsUnLock()*/
 
 			cNomeCli :=  alltrim(SA1->A1_NOME)
 			cCGCCli  :=  If(SA1->A1_TIPO=="F",Transform(SA1->A1_CGC, "@R 999.999.999-99"),Transform(SA1->A1_CGC, "@R 99.999.999/9999-99"))
@@ -160,6 +161,8 @@ user function F040ALT()
 
 			oPrn:EndPage()
 			oPrn:Preview()
+		ELSE
+			lRet := .F.
 		EndIF
 
 	endif

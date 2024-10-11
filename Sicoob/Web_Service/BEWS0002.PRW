@@ -167,7 +167,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oJsonSicoob['numeroContrato']                      := cCodConv
 		oJsonSicoob['modalidade']                          := 1
 		oJsonSicoob['nossoNumero']                         := cNossoNum
-		oJsonSicoob['dataVencimento']                      := FWTimeStamp(5,stod(aDadosTit[4]),Time())
+		oJsonSicoob['dataVencimento']                      := FWTimeStamp(5,aDadosTit[4],Time())
 
 		cPath  := "/boletos/prorrogacoes/data-vencimento"
 		cBody := EncodeUTF8(oJsonSicoob:ToJson())
@@ -176,14 +176,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oResponse:fromJson(FwNoAccent(cResponse))
 		if oResponse['resultado'][1]['status']['codigo'] == 200 .or. (oResponse['resultado'][1]['status']['codigo'] == 400 )
 			freeObj(oJsonSicoob)
-			cPath  := "/boletos"
-			cParams := "client_id=" + cCodClie +"&"
-			cParams += "modalidade=1&"
-			cParams += "numeroContrato="+cCodConv+"&"
-			cParams += "nossoNumero="+cNossoNum
-			cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, cParams, nTimeOut, aHeader, @cHeaderGet)
-			oResp:= JsonObject():new()
-			oResp:fromJson(FwNoAccent(cPostRet))
+
 			IF oResponse['resultado'][1]['status']['codigo']  == 400
 
 				cMsg := '<font color="#0F0F00" size="4">Atenção!!!</font>'
@@ -192,7 +185,17 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 
 				FWAlertSuccess(cMsg, "Retorno Sicoob-BEWS0002")
 				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8(oResponse['resultado'][1]['status']['mensagem']) , 0, 0)
+				lRet := .F.
 			ELSEIF oResponse['resultado'][1]['status']['codigo']  == 200
+				cPath  := "/boletos"
+				cParams := "client_id=" + cCodClie +"&"
+				cParams += "modalidade=1&"
+				cParams += "numeroContrato="+cCodConv+"&"
+				cParams += "nossoNumero="+cNossoNum
+				cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, cParams, nTimeOut, aHeader, @cHeaderGet)
+				oResp:= JsonObject():new()
+				oResp:fromJson(FwNoAccent(cPostRet))
+
 				dbSelectArea( "SE1" )
 				SE1->(DbGoTo(nRecno))
 
@@ -211,13 +214,12 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 				cMsg += '<font color="#AD2121" size="4">'+EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataVencimento']) +'</font>'
 
 				FWAlertSuccess(cMsg, "Retorno Sicoob-BEWS0002")
-				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", "Data Limite Alterada: " + EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataLimitePagamento']) , 0, 0)
+				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", "Data Limite Alterada: " + EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataVencimento']) , 0, 0)
+				lRet := .T.
 			ENDIF
-
-
-			lRet := .T.
 		else
-			FWAlertWarning("Falha ao cancelar cobrança! "+ oResponse['resultado'][1]['status']['mensagem'], "Retorno Sicoob-BEWS0002")
+			FWAlertWarning("Falha ao alterar cobrança! "+ oResponse['resultado'][1]['status']['mensagem'], "Retorno Sicoob-BEWS0002")
+			lRet := .F.
 		endif
 		freeObj(oResponse)
 
@@ -227,7 +229,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oJsonSicoob['numeroContrato']                      := cCodConv
 		oJsonSicoob['modalidade']                          := 1
 		oJsonSicoob['nossoNumero']                         := cNossoNum
-		oJsonSicoob['dataLimitePagamento']                 := FWTimeStamp(5,stod(aDadosTit[4]),Time())
+		oJsonSicoob['dataLimitePagamento']                 := FWTimeStamp(5,stod(aDadosTit[4])+aBancos[nPOS][17],Time())
 
 
 		cPath  := "/boletos/prorrogacoes/data-limite-pagamento"
@@ -237,24 +239,16 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oResponse:fromJson(FwNoAccent(cResponse))
 		if oResponse['resultado'][1]['status']['codigo'] == 200 .or. (oResponse['resultado'][1]['status']['codigo'] == 400 )
 			freeObj(oJsonSicoob)
-			cPath  := "/boletos"
-			cParams := "client_id=" + cCodClie +"&"
-			cParams += "modalidade=1&"
-			cParams += "numeroContrato="+cCodConv+"&"
-			cParams += "nossoNumero="+cNossoNum
-			cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, cParams, nTimeOut, aHeader, @cHeaderGet)
-			oResp:= JsonObject():new()
-			oResp:fromJson(FwNoAccent(cPostRet))
-			lRet := .T.
 			IF oResponse['resultado'][1]['status']['codigo']  == 400
-				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8(oResponse['resultado'][1]['status']['mensagem']) , 0, 0)
+				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", "Data limite não alterada, Nosso Número:  " +cNossoNum +"  "+ EncodeUTF8(oResponse['resultado'][1]['status']['mensagem']) , 0, 0)
 			ELSEIF oResponse['resultado'][1]['status']['codigo']  == 200
-				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", "Data Limite Alterada: " + EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataLimitePagamento']) , 0, 0)
+				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", "Data limite alterada, Nosso Número:  " +cNossoNum +"  "+EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataLimitePagamento']) , 0, 0)
 			ENDIF
 
 		else
-			FWAlertWarning("Falha ao cancelar cobrança! "+ oResponse['resultado'][1]['status']['mensagem'], "Retorno Sicoob-BEWS0002")
+			FWAlertWarning("Falha ao alterar data limite! "+ oResponse['resultado'][1]['status']['mensagem'], "Retorno Sicoob-BEWS0002")
 		endif
+		lRet := .T.
 		freeObj(oResponse)
 
 	elseif lExclui

@@ -230,6 +230,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 	local aDadosTit  := {}
 	local aDatSacado := {}
 	local aBolText   := {"","",""}
+	Local nDiasLim   := 180
 	private cPerg2	:= "BIOFIN03"
 	private cFilePrint := ""
 
@@ -315,6 +316,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 	cMens1          	:=  alltrim(SEE->EE_XXMENS1)
 	cJuros          	:=  SEE->EE_XXTXJUR
 	cJurDia         	:=  SEE->EE_XXTXJDI
+	nDiasLim            := IIF( !EMPTY(SEE->EE_DIASREC), SEE->EE_DIASREC,  nDiasLim )
 	SEE->(DbCloseArea())
 
 	//Atualizando vetor de dados do banco
@@ -328,6 +330,8 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 	aBancos[nPOS][13] 	:= cFaixaFim
 	aBancos[nPOS][15] 	:= cJuros
 	aBancos[nPOS][16] 	:= cJurDia
+	aBancos[nPOS][17] 	:= nDiasLim
+
 
 	If EMPTY(cFilePrint)
 		cFilePrint := "BOL_" + Alltrim(QRY->E1_PREFIXO)+"_" + Alltrim(QRY->E1_NUM) + Alltrim(QRY->E1_PARCELA) + Alltrim(QRY->E1_TIPO)  + "_" + AllTrim(QRY->E1_CLIENTE) + "_" + AllTrim(QRY->E1_LOJA)
@@ -849,11 +853,11 @@ Static Function setBanc()
 	// DEFINE PARÂMETROS DE CADA BANCO POSSÍVEL (9)
 	// Vide documentação
 
-	AADD(aBancos, { "001","BANCO DO BRASIL", "001.bmp"    , "001-9",,,,,,,,"",,,,})    //Banco do Brasil
-	AADD(aBancos, { "237","BRADESCO",        "237.bmp"    , "237-2",,,,,,,,"",,,,})    //Bradesco
-	AADD(aBancos, { "341","BANCO ITAÚ S.A ", "341.bmp"    , "341-7",,,,,,,,"",,,,})    //Itau
-	AADD(aBancos, { "756","SICOOB",          "756.bmp"    , "756-0",,,,,,,,"",,,,})    //Sicoob
-	AADD(aBancos, { "104","CAIXA",           "104.bmp"    , "104-0",,,,,,,,"",,,,})    //Caixa
+	AADD(aBancos, { "001","BANCO DO BRASIL", "001.bmp"    , "001-9",,,,,,,,"",,,,,})    //Banco do Brasil
+	AADD(aBancos, { "237","BRADESCO",        "237.bmp"    , "237-2",,,,,,,,"",,,,,})    //Bradesco
+	AADD(aBancos, { "341","BANCO ITAÚ S.A ", "341.bmp"    , "341-7",,,,,,,,"",,,,,})    //Itau
+	AADD(aBancos, { "756","SICOOB",          "756.bmp"    , "756-0",,,,,,,,"",,,,,})    //Sicoob
+	AADD(aBancos, { "104","CAIXA",           "104.bmp"    , "104-0",,,,,,,,"",,,,,})    //Caixa
 
 Return
 
