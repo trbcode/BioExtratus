@@ -65,8 +65,8 @@ user function F040ALT()
 		nValorReal                	                                    ,;  // [5] Valor do título
 		STRTRAN(alltrim(SE1->E1_NOSNUM),"-","")                         ,;  // [6] Nosso número (Ver fórmula para calculo)
 		SE1->E1_PREFIXO                               	                ,;  // [7] Prefixo da NF
-		SE1->E1_TIPO}                                                       // [8] Tipo do Titulo
-
+		SE1->E1_TIPO                                                    ,;  // [8] Tipo do Titulo
+		SE1->R_E_C_N_O_ }                                                   // [9] Recno
 
 		IF U_BEWS0002("ALT",,aDadosTit,aBancos,nPOS,,,@aDados,,,,cCodClie,STRTRAN(alltrim(SE1->E1_NOSNUM),"-",""))
 

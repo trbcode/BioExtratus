@@ -10,13 +10,13 @@ Objetivo: Integração EndPoints SICOOB
 /*/{Protheus.doc} BEWS0002
     Integração EndPoints
     @author  Igor Guimarães
-	@type    user function
+    @type    user function
     @example Exemplos
     @param   [Nome_do_Parametro],Tipo_do_Parametro,Descricao_do_Parametro
     @return  Logical
     @table   Tabelas
     @since   29-05-2024
-	U_BEWS0002("GER",@aDadosEmp,aDadosTit,@aBancos, nPOS,aDatSacado,aBolText,@aDados)
+    U_BEWS0002("GER",@aDadosEmp,aDadosTit,@aBancos, nPOS,aDatSacado,aBolText,@aDados)
 /*/
 
 User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolText,aDados,dDtaBx,cDatIni,cDatFim, cCodClie, cNossoNum)
@@ -38,7 +38,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 	Local cToken          := ""
 	Local cMsg            := ""
 	Local aHeader         := {}
-	Local cKey 	          := ""
+	Local cKey            := ""
 	Local cCert           := ""
 	Local cPostParms      := ""
 	Local nTimeOut        := 120
@@ -46,18 +46,19 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 	Local cHeaderGet      := ""
 	Local cPostRet        := ""
 	Local lRet            := .F.
-	local nVlrBio		  := 0
-	local nVlrFup		  := 0
-	local nVlrChk		  := 0
-	local cCtaBio		  := ""
-	local cCtaFup		  := ""
-	local cCtaChk		  := ""
+	local nVlrBio         := 0
+	local nVlrFup         := 0
+	local nVlrChk         := 0
+	local cCtaBio         := ""
+	local cCtaFup         := ""
+	local cCtaChk         := ""
 	Local ntotal          := 0
 	Local natual          := 0
 	Local nVlrJur         := 0
 	Local nTotJur         := 0
 	Local cNNomArq        := ""
-	Local bError		  := .F.
+	Local bError          := .F.
+	Local mError          := "Erro na liberação do arquivo pelo banco, tente mais tarde."
 	Local oFile           As Object
 	Private oToken        As Object
 	Private oJsonSicoob   As Object
@@ -69,21 +70,25 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 	Default dDtaBx        := date()
 	Default cDatIni       := dtos(date())
 	Default cDatFim       := dtos(date())
+	Default cNossoNum     := ""
 
 	if !lLogin
 		RpcSetEnv("01","01","Admin")
 	endif
+
+	cNossoNum := STRTRAN(alltrim(cNossoNum),"-","")
 
 	lInclui   := cOrigem == "GER"
 	lAlter    := cOrigem == "ALT"
 	lExclui   := cOrigem == "EXC"
 	lDetalh   := cOrigem == "DET"
 	lBaixa    := cOrigem == "BAI"
+	lAltLim   := cOrigem == "ALTLIM"
 	cCodConv  := AllTrim( aBancos[nPOS][8])
 	cBcoCNAB  := aBancos[nPOS][1]//PADR(AllTrim( SuperGETMV( "BE_BCSICOB",, "756" )),TAMSX3("A6_COD")[1])
 	cAgeCNAB  := PADR(Alltrim(aBancos[nPOS][10]),TAMSX3("A6_AGENCIA")[1])//PADR(AllTrim( SuperGETMV( "BE_AGSICOB",, "4108" )),TAMSX3("A6_AGENCIA")[1])
 	cCtaCNAB  := PADR(Alltrim(aBancos[nPOS][7]),TAMSX3("A6_NUMCON")[1])//PADR(AllTrim( SuperGETMV( "BE_CCSICOB",, "84298" )),TAMSX3("A6_NUMCON")[1])
-	cKey 	  := SuperGetMV("BE_CHVKEY",.T.,"\certs\000002_key.pem")
+	cKey      := SuperGetMV("BE_CHVKEY",.T.,"\certs\000002_key.pem")
 	cCert     := SuperGetMV("BE_CHVCER",.T.,"\certs\000002_cert.pem")
 	cPswCert  := GETMV("BE_PSWSICO")
 	cURL      := SuperGetMV("BE_URLSICO",.T.,"https://api.sicoob.com.br/cobranca-bancaria/v2")
@@ -105,13 +110,13 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oJsonSicoob['numeroContaCorrente']                 := val(cCtaCNAB)
 		oJsonSicoob['especieDocumento']                    := "DM"
 		oJsonSicoob['dataEmissao']                         := FWTimeStamp(5,stod(aDadosTit[2]),Time())
-//		oJsonSicoob['nossoNumero']						   := cNossoNum   	
+//      oJsonSicoob['nossoNumero']                         := cNossoNum    
 		oJsonSicoob['seuNumero']                           := aDadosTit[1]
 		oJsonSicoob['identificacaoEmissaoBoleto']          := 2
 		oJsonSicoob['identificacaoDistribuicaoBoleto']     := 2
 		oJsonSicoob['valor']                               := aDadosTit[5]
 		oJsonSicoob['dataVencimento']                      := FWTimeStamp(5,stod(aDadosTit[4]),Time())
-		oJsonSicoob['dataLimitePagamento']                 := FWTimeStamp(5,stod(aDadosTit[4])+30,Time())
+		oJsonSicoob['dataLimitePagamento']                 := FWTimeStamp(5,stod(aDadosTit[4])+aBancos[nPOS][17],Time())
 		oJsonSicoob['tipoDesconto']                        := 0
 		oJsonSicoob['tipoMulta']                           := 2 //0 - Isento 1 - Valor Fixo 2 - Percentual
 		oJsonSicoob['dataMulta']                           := FWTimeStamp(5,stod(aDadosTit[4])+1,Time())
@@ -157,11 +162,12 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 
 	elseif lAlter
 
+		nRecno := aDadosTit[9]
 		oJsonSicoob :=  JsonObject():New()
 		oJsonSicoob['numeroContrato']                      := cCodConv
 		oJsonSicoob['modalidade']                          := 1
-		oJsonSicoob['nossoNumero']						   := cNossoNum
-		oJsonSicoob['dataVencimento']                      := FWTimeStamp(5,aDadosTit[4],Time())
+		oJsonSicoob['nossoNumero']                         := cNossoNum
+		oJsonSicoob['dataVencimento']                      := FWTimeStamp(5,stod(aDadosTit[4]),Time())
 
 		cPath  := "/boletos/prorrogacoes/data-vencimento"
 		cBody := EncodeUTF8(oJsonSicoob:ToJson())
@@ -169,7 +175,6 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oResponse := JsonObject():new()
 		oResponse:fromJson(FwNoAccent(cResponse))
 		if oResponse['resultado'][1]['status']['codigo'] == 200 .or. (oResponse['resultado'][1]['status']['codigo'] == 400 )
-			freeObj(oResponse)
 			freeObj(oJsonSicoob)
 			cPath  := "/boletos"
 			cParams := "client_id=" + cCodClie +"&"
@@ -179,18 +184,78 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 			cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, cParams, nTimeOut, aHeader, @cHeaderGet)
 			oResp:= JsonObject():new()
 			oResp:fromJson(FwNoAccent(cPostRet))
-			aDados[2]  := cValtoChar(oResp['resultado']['codigoBarras'])
-			aDados[3]  := cValtoChar(oResp['resultado']['linhaDigitavel'])
-			aDados[38] := cValtoChar(oResp['resultado']['qrCode'])
-			cMsg := '<font color="#0F0F00" size="4">Data de vencimento alterado com sucesso!</font>'
-			cMsg += '<br>'
-			cMsg += '<font color="#AD2121" size="4">O Sicoob pode levar algum tempo para processar essa alteração!</font>'
+			IF oResponse['resultado'][1]['status']['codigo']  == 400
 
-			FWAlertSuccess(cMsg, "Retorno Sicoob-BEWS0002")
+				cMsg := '<font color="#0F0F00" size="4">Atenção!!!</font>'
+				cMsg += '<br>'
+				cMsg += '<font color="#AD2121" size="4">'+EncodeUTF8(oResponse['resultado'][1]['status']['mensagem']) +'</font>'
+
+				FWAlertSuccess(cMsg, "Retorno Sicoob-BEWS0002")
+				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8(oResponse['resultado'][1]['status']['mensagem']) , 0, 0)
+			ELSEIF oResponse['resultado'][1]['status']['codigo']  == 200
+				dbSelectArea( "SE1" )
+				SE1->(DbGoTo(nRecno))
+
+				aDados[2]  := cValtoChar(oResp['resultado']['codigoBarras'])
+				aDados[3]  := cValtoChar(oResp['resultado']['linhaDigitavel'])
+				aDados[38] := cValtoChar(oResp['resultado']['qrCode'])
+
+				RecLock("SE1",.F.)
+				SE1->E1_XQRCODE := cValtoChar(oResp['resultado']['qrCode'])
+				SE1->E1_CODBAR  := cValtoChar(oResp['resultado']['codigoBarras'])
+				SE1->E1_CODDIG  := cValtoChar(oResp['resultado']['linhaDigitavel'])
+				SE1->(MsUnlock())
+
+				cMsg := '<font color="#0F0F00" size="4">Alteração realizada com sucesso!</font>'
+				cMsg += '<br>'
+				cMsg += '<font color="#AD2121" size="4">'+EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataVencimento']) +'</font>'
+
+				FWAlertSuccess(cMsg, "Retorno Sicoob-BEWS0002")
+				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", "Data Limite Alterada: " + EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataLimitePagamento']) , 0, 0)
+			ENDIF
+
+
 			lRet := .T.
 		else
 			FWAlertWarning("Falha ao cancelar cobrança! "+ oResponse['resultado'][1]['status']['mensagem'], "Retorno Sicoob-BEWS0002")
 		endif
+		freeObj(oResponse)
+
+	elseif lAltLim
+
+		oJsonSicoob :=  JsonObject():New()
+		oJsonSicoob['numeroContrato']                      := cCodConv
+		oJsonSicoob['modalidade']                          := 1
+		oJsonSicoob['nossoNumero']                         := cNossoNum
+		oJsonSicoob['dataLimitePagamento']                 := FWTimeStamp(5,stod(aDadosTit[4]),Time())
+
+
+		cPath  := "/boletos/prorrogacoes/data-limite-pagamento"
+		cBody := EncodeUTF8(oJsonSicoob:ToJson())
+		cResponse := HTTPQuote( cURL+cPath, "PATCH", "", "["+cBody+"]", 120, aClone(aHeader), @cHeaderGet )
+		oResponse := JsonObject():new()
+		oResponse:fromJson(FwNoAccent(cResponse))
+		if oResponse['resultado'][1]['status']['codigo'] == 200 .or. (oResponse['resultado'][1]['status']['codigo'] == 400 )
+			freeObj(oJsonSicoob)
+			cPath  := "/boletos"
+			cParams := "client_id=" + cCodClie +"&"
+			cParams += "modalidade=1&"
+			cParams += "numeroContrato="+cCodConv+"&"
+			cParams += "nossoNumero="+cNossoNum
+			cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, cParams, nTimeOut, aHeader, @cHeaderGet)
+			oResp:= JsonObject():new()
+			oResp:fromJson(FwNoAccent(cPostRet))
+			lRet := .T.
+			IF oResponse['resultado'][1]['status']['codigo']  == 400
+				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8(oResponse['resultado'][1]['status']['mensagem']) , 0, 0)
+			ELSEIF oResponse['resultado'][1]['status']['codigo']  == 200
+				FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", "Data Limite Alterada: " + EncodeUTF8(oResponse['resultado'][1]['prorrogacao']['dataLimitePagamento']) , 0, 0)
+			ENDIF
+
+		else
+			FWAlertWarning("Falha ao cancelar cobrança! "+ oResponse['resultado'][1]['status']['mensagem'], "Retorno Sicoob-BEWS0002")
+		endif
+		freeObj(oResponse)
 
 	elseif lExclui
 
@@ -229,7 +294,6 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		cPath     := "/boletos/solicitacoes/movimentacao"
 		oFile     := FWFileWriter():New("\TMP\"+cNNomArq+".json", .T.)
 		If !oFile:Exists()
-
 			oJsonSicoob :=  JsonObject():New()
 			oJsonSicoob['numeroContrato']                  := val(cCodConv)
 			oJsonSicoob['tipoMovimento']                   := 5
@@ -250,47 +314,33 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 				oResp:fromJson(FwNoAccent(cPostRet))
 
 				if !valtype(oResp['mensagens']) =="A"
-					if oResp['resultado']['quantidadeArquivo'] > 0
-						cPath := "/boletos/movimentacao-download"
-						for nZ := 1 to Len(oResp['resultado']['idArquivos'])
-							_cParams := cParams+"&idArquivo="+cValtoChar(oResp['resultado']['idArquivos'][nZ])
-							cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, _cParams, nTimeOut, aHeader, @cHeaderGet)
-							oRespZip:= JsonObject():new()
-							oRespZip:fromJson(FwNoAccent(cPostRet))
-							if !Empty(oRespZip['resultado']['arquivo'])
-								cNomeArq := substr(oRespZip['resultado']['nomeArquivo'],1,len(oRespZip['resultado']['nomeArquivo'])-4)
-								cArquivo := cDir+cNomeArq+".zip"
-								cDecode  := Decode64(oRespZip['resultado']['arquivo'])
-								MemoWrite(cArquivo,cDecode)
-								FUnzip( cArquivo, cDir)
-								FRename(cDir+cNomeArq+".json", cDir+cNNomArq+".json")
-							endif
-						next nZ
-						bError := .T.
-					else
-						bError := .F.
-					endif
+					cPath := "/boletos/movimentacao-download"
+					for nZ := 1 to Len(oResp['resultado']['idArquivos'])
+						_cParams := cParams+"&idArquivo="+cValtoChar(oResp['resultado']['idArquivos'][nZ])
+						cPostRet := HTTPSGet( cUrl + cPath, cCert, cKey, cPswCert, _cParams, nTimeOut, aHeader, @cHeaderGet)
+						oRespZip:= JsonObject():new()
+						oRespZip:fromJson(FwNoAccent(cPostRet))
+						if !Empty(oRespZip['resultado']['arquivo'])
+							cNomeArq := substr(oRespZip['resultado']['nomeArquivo'],1,len(oRespZip['resultado']['nomeArquivo'])-4)
+							cArquivo := cDir+cNomeArq+".zip"
+							cDecode  := Decode64(oRespZip['resultado']['arquivo'])
+							MemoWrite(cArquivo,cDecode)
+							FUnzip( cArquivo, cDir)
+							FRename(cDir+cNomeArq+".json", cDir+cNNomArq+".json")
+						else
+							bError := .T.
+						endif
+					next nZ
 				Else
-				/*
-					if !IsBlind()
-						cMsgErr := "<br>Infelizmente, a baixa referente ao dia   <b>" + DTOC(STOD(cDatFim)) + "</b> apresentou um erro. "
-						cMsgErr	+= " Por gentileza, confirme se é um dia útil e refaça o procedimento.<br><br>"
-						U_EnviaEmail("Erro na Baixa Automática", cMsgErr, "alesssandro.magno@bioextratus.com.br", "", "")
-					else
-						FWAlertWarning(cMsgErr, "Erro na Baixa Automática")						
-						U_EnviaEmail("Erro na Baixa Automática", cMsgErr, "alesssandro.magno@bioextratus.com.br", "", "")
-						FWLogMsg("ERROR", "", "Erro", "BEWS0002", "", "", EncodeUTF8("Erro ao baixar título com o número "+cNossoNum+"!") , 0, 0)
-					endIf
-				*/
-					bError := .F.
+					bError := .T.
 				EndIf
 			else
-				bError := .F.
+				bError := .T.
 			endif
 		endif
 
 		oFile:Close()
-		cJsonStr := decodeutf8(ReadFile(cDir+cNNomArq+".json", cDatFim))
+		cJsonStr := decodeutf8(ReadFile(cDir+cNNomArq+".json", cDatFim, mError))
 		oJson := JSonObject():New()
 		oJson:FromJson(cJsonStr)
 		FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8("Inicio baixa API Sicoob!") , 0, 0)
@@ -354,13 +404,6 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 				lRet := .T.
 			endif
 		endif
-
-		if !bError
-			cMsgErr := "<br>Infelizmente, a baixa referente ao dia   <b>" + DTOC(STOD(cDatFim)) + "</b> apresentou um erro. "
-			cMsgErr	+= " Por gentileza, confirme se é um dia útil e refaça o procedimento.<br><br>"
-			U_EnviaEmail("Erro na Baixa Automática", cMsgErr, "alesssandro.magno@bioextratus.com.br", "", "")
-		endif
-
 		FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8("Valor total baixa ="+Transform(ntotal ,'@E 999,999,999.99')) , 0, 0)
 		FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8("Valor total Original ="+Transform(natual ,'@E 999,999,999.99')) , 0, 0)
 		FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8("Valor total Original ="+Transform(nTotJur,'@E 999,999,999.99')) , 0, 0)
@@ -368,6 +411,13 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 
 		dDataBase := dDatabkp
 	endif
+	if bError
+		cMsgErr := "<br>Infelizmente, a baixa referente ao dia   <b>" + DTOC(STOD(cDatFim)) + "</b> apresentou um erro. "
+		mError := MsgErr    += "<br> End Point: " + cPath + "<br>"
+		mError  += "<br> Mensagem: " + (oResponse['resultado']['mensagem']) + "<br>"
+		U_EnviaEmail("Erro na Baixa Automática", cMsgErr, "alesssandro.magno@bioextratus.com.br", "", "")
+	endif
+
 
 	FWLogMsg("INFO", "", "Sucesso", "BEWS0002", "", "", EncodeUTF8("Fim baixa API Sicoob!") , 0, 0)
 	RestArea(aAreaSicoob)
@@ -377,7 +427,7 @@ Return(lRet)
 /*/{Protheus.doc} BE02GrBx
 Baixa os títulos a receber
 @type function
-
+ 
 @author iglal
 @since 8/14/2024
 @param nRecnoSE1, numeric, recno do título de baixa
@@ -396,7 +446,7 @@ Static Function BE02GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCre
 	Local lRet           :=  .F.
 	Local aVetor         := {}
 	local cChaveSA6      := cBcoCNAB+cAgeCNAB+cCtaCNAB
-	Local cFunName		 := FunName()
+	Local cFunName       := FunName()
 	Private lMsErroAuto  := .F.
 	Private lMsHelpAuto  := .T.
 	Private lMostraErro  := .F.
@@ -423,25 +473,25 @@ Static Function BE02GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCre
 		SetFunName("FINA070")
 
 		AADD(aVetor,{"E1_FILIAL"        , SE1->E1_FILIAL        , Nil } )
-		AADD(aVetor,{"E1_PREFIXO"		, SE1->E1_PREFIXO 		,Nil})
-		AADD(aVetor,{"E1_NUM"			, SE1->E1_NUM       	,Nil})
-		AADD(aVetor,{"E1_PARCELA"		, SE1->E1_PARCELA  		,Nil})
-		AADD(aVetor,{"E1_TIPO"	   	 	, SE1->E1_TIPO     		,Nil})
-		AADD(aVetor,{"E1_CLIENTE"		, SE1->E1_CLIENTE  		,Nil})
-		AADD(aVetor,{"E1_LOJA"	    	, SE1->E1_LOJA     		,Nil})
-		AADD(aVetor,{"E1_MOEDA"	    	, SE1->E1_MOEDA     	,Nil})
-		AADD(aVetor,{"AUTMOTBX"	    	, "NOR"            		,Nil})
-		AADD(aVetor,{"AUTDTBAIXA"		, dDatMov				,Nil})
-		AADD(aVetor,{"AUTDTCREDITO"	    , dDatCred				,Nil})
-		AADD(aVetor,{"AUTHIST"	    	, OemToAnsi("Baixa API Sicoob")	,Nil})
-		AADD(aVetor,{"AUTBANCO"			, SE1->E1_PORTADO		,NIL}) //Banco
-		AADD(aVetor,{"AUTAGENCIA"		, SE1->E1_AGEDEP		,NIL}) //agencia
-		AADD(aVetor,{"AUTCONTA"			, SE1->E1_CONTA			,NIL}) //Conta
+		AADD(aVetor,{"E1_PREFIXO"       , SE1->E1_PREFIXO       ,Nil})
+		AADD(aVetor,{"E1_NUM"           , SE1->E1_NUM           ,Nil})
+		AADD(aVetor,{"E1_PARCELA"       , SE1->E1_PARCELA       ,Nil})
+		AADD(aVetor,{"E1_TIPO"          , SE1->E1_TIPO          ,Nil})
+		AADD(aVetor,{"E1_CLIENTE"       , SE1->E1_CLIENTE       ,Nil})
+		AADD(aVetor,{"E1_LOJA"          , SE1->E1_LOJA          ,Nil})
+		AADD(aVetor,{"E1_MOEDA"         , SE1->E1_MOEDA         ,Nil})
+		AADD(aVetor,{"AUTMOTBX"         , "NOR"                 ,Nil})
+		AADD(aVetor,{"AUTDTBAIXA"       , dDatMov               ,Nil})
+		AADD(aVetor,{"AUTDTCREDITO"     , dDatCred              ,Nil})
+		AADD(aVetor,{"AUTHIST"          , OemToAnsi("Baixa API Sicoob") ,Nil})
+		AADD(aVetor,{"AUTBANCO"         , SE1->E1_PORTADO       ,NIL}) //Banco
+		AADD(aVetor,{"AUTAGENCIA"       , SE1->E1_AGEDEP        ,NIL}) //agencia
+		AADD(aVetor,{"AUTCONTA"         , SE1->E1_CONTA         ,NIL}) //Conta
 		if nVlrJur > 0
-			AADD(aVetor,{"AUTJUROS"	    ,nVlrJur                ,Nil })
+			AADD(aVetor,{"AUTJUROS"     ,nVlrJur                ,Nil })
 		endif
-		AADD(aVetor,{"AUTVALREC"		, nValBx+nVlrJur		,NIL}) //Valor de pagamento
-		AADD( aVetor, { "AUTMULTA"  	, nMulta						, Nil } )
+		AADD(aVetor,{"AUTVALREC"        , nValBx+nVlrJur        ,NIL}) //Valor de pagamento
+		AADD( aVetor, { "AUTMULTA"      , nMulta                        , Nil } )
 
 		MSExecAuto({|x,y| Fina070(x,y)},aVetor,3)
 
@@ -486,9 +536,9 @@ Static Function GetChave(cNosso)
             %Table:SE1% E1
         WHERE
             E1.E1_NUMBCO = %Exp:cNosso%
-            AND D_E_L_E_T_ = ' ' 
-			AND E1.E1_PORTADO = '756'
-			AND E1.E1_SALDO > 0
+            AND D_E_L_E_T_ = ' '
+            AND E1.E1_PORTADO = '756'
+            AND E1.E1_SALDO > 0
 	EndSql
 	while (cTMPSE1)->(!Eof())
 		nRet := (cTMPSE1)->(R_E_C_N_O_)
@@ -499,7 +549,7 @@ Return(nRet)
 
 
 /*/{Protheus.doc} ReadFile6
-Leitura arquivo 
+Leitura arquivo
 @type function
 @version  
 @author Igor Guimarães
@@ -507,11 +557,11 @@ Leitura arquivo
 @param cFile, character, param_description
 @return variant, return_description
 /*/
-Static Function ReadFile(cFile, cDatFim)
+Static Function ReadFile(cFile, cDatFim, mError)
 
 	Local cBuffer := ''
 	Local nH , nTam
-	local cParaErro:=  'protheus@bioextratus.com.br,jeane.alvernaz@bioextratus.com.br'
+	local cParaErro:=  GetMv("MV_XXWFFIN")
 	local cMsgErr := ''
 
 	nH := Fopen(cFile)
@@ -523,18 +573,18 @@ Static Function ReadFile(cFile, cDatFim)
 		fClose(nH)
 	else
 		cMsgErr    := "<br>Infelizmente, a baixa referente ao dia   <b>" + DTOC(STOD(cDatFim)) + "</b> apresentou um erro. "
-		cMsgErr	+= " Por gentileza, refaça o procedimento através do menu.<br><br>"
-		cMsgErr	+= "Nome do Arquivo: "+ cFile + "<br><br>"
+		cMsgErr += "<br>" + mError + "<br>"
+		cMsgErr += "Nome do Arquivo: "+ cFile + "<br><br>"
 		if cDatFim == DTOS(DataValida(cDatFim))
 			U_BIOPADEM(cParaErro, "[BAIXAS AUTOMÁTICAS] - Erro na Baixa Automática: ", cMsgErr, "" , , )
-		end if//		MsgStop("Falha na abertura do arquivo ["+cFile+"]","FERROR "+cValToChar(Ferror()))
+		end if//        MsgStop("Falha na abertura do arquivo ["+cFile+"]","FERROR "+cValToChar(Ferror()))
 	endif
 Return cBuffer
 
 /*/{Protheus.doc} IncMov
-
+ 
     Inclusão Movimento Financeiro
-
+ 
     @author  Igor Guimarães
     @example Exemplos
     @param   [Nome_do_Parametro],Tipo_do_Parametro,Descricao_do_Parametro
@@ -576,7 +626,7 @@ Static Function IncMov(cBanco,cAgenc,cConta,cNatureza, cTpNatur, cCodLanc, cNatM
 		{"E5_NATUREZ", cNatureza                 , Nil},;
 		{"E5_BANCO"  , cBanco                    , Nil},;
 		{"E5_AGENCIA", cAgenc                    , Nil},;
-		{"E5_CONTA"  , cConta 					 , Nil},;
+		{"E5_CONTA"  , cConta                    , Nil},;
 		{"E5_TXMOEDA", nTaxa                     , Nil},;
 		{"E5_RECPAG" , cRecPag                   , Nil},;
 		{"E5_TIPODOC", cTipDoc                   , Nil},;
