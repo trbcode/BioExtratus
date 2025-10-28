@@ -1,0 +1,164 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+
+/*/{Protheus.doc} bancodobrasil
+Classe responsável pelas integrações com Banco do Brasil via API REST
+@type class
+@version  
+@author Igor Guimarães
+@since 10/28/2025
+/*/
+class bancodobrasil
+
+	Data cURL                   as Character
+	Data cPath                  as Character
+	Data cAuthorization         as Character
+	Data cAppToken              as Character
+	Data cToken                 as Character
+	Data numeroVariacaoCarteira as Character
+	Data cCodigoConvenio        as Character
+	Data codigoBanco            as Character
+	Data codigoAgencia          as Character
+	Data codigoConta            as Character
+	Data aHeader                as Array
+	Public Data cResult         as Character
+
+	public method new()
+	public method InitSession()
+	public method incluiboletos()
+	public method alteraboletos()
+	public method excluiboletos()
+	public method recebeboletos()
+	public method geratoken()
+
+endclass
+
+method new() class bancodobrasil
+Return self
+
+method InitSession() class bancodobrasil
+
+	Local oToken      As Object
+
+	oToken := ::geratoken()
+	::cToken := oToken['token_type']+space(1)+oToken['access_token']
+
+	aadd(::aHeader, "Authorization: "+cToken)
+	aadd(::aHeader, "Content-Type: application/json")
+
+	::cURL  := "https://api.bb.com.br/cobrancas/v2/boletos"
+	::cCodigoConvenio := "4108"
+Return
+
+method incluiboletos() class bancodobrasil
+
+	Local oJsonBB     := JsonObject():New()
+	Local oDesc       := JsonObject():New()
+	Local oJuros      := JsonObject():New()
+	Local oMulta      := JsonObject():New()
+	Local oPag        := JsonObject():New()
+	Local oBenFinal   := JsonObject():New()
+	Local oRestBB	    As Object
+
+	::cPath := "/boletos?"+SuperGetMV("BE_BBBASIC",.T.,"gw-dev-app-key=7091808b0bffbed01366e181d0050056b941a5b1")
+// Campos raiz
+	oJsonBB["numeroConvenio"]                        := Val(cCodConv) // ou ::cCodigoConvenio, se estiver em uma classe
+	oJsonBB["dataVencimento"]                        := StrTran(Dtoc(StoD(aDadosTit[4])),"/",".")
+
+	oJsonBB["valorOriginal"]                         := aDadosTit[5]
+	oJsonBB["numeroCarteira"]                        := nCarteira
+	oJsonBB["numeroVariacaoCarteira"]                := nVariacao
+	oJsonBB["codigoModalidade"]                      := nModalidade
+	oJsonBB["dataEmissao"]                           := StrTran(Dtoc(StoD(aDadosTit[2])),"/",".")
+
+	oJsonBB["codigoAceite"]                          := "A"
+	oJsonBB["codigoTipoTitulo"]                      := 2
+	oJsonBB["descricaoTipoTitulo"]                   := "DM"
+	oJsonBB["indicadorPermissaoRecebimentoParcial"]  := "N"
+	oJsonBB["numeroTituloBeneficiario"]              := aDadosTit[1]
+	oJsonBB["numeroTituloCliente"]                   := "000" + aCB_RN_NN[3]
+
+// Desconto
+	oDesc["tipo"] := 0 //Domínio: 0 - Sem desconto; 1 - Valor fixo até a data informada; 2 - percentual até a data informada.
+	oJsonBB["desconto"] := oDesc
+
+// Juros de mora
+	oJuros["tipo"]        := 2 //Domínio: 0 - Dispensar; 1 - Valor fixo por dia de atraso; 2 - Taxa mensal; 3 - Isento.
+	oJuros["porcentagem"] := 10.00
+	oJsonBB["jurosMora"]  := oJuros
+
+// Multa
+	oMulta["tipo"] := 0 //Domínio: 0 - Dispensar; 1 - Valor fixo (a partir da data estipulada no registro); 2 - Percentual (a partir da data estipulada no registro).
+	oJsonBB["multa"] := oMulta
+
+// Pagador
+	oPag["tipoInscricao"]   := Iif(AllTrim(aDatSacado[8]) == "J", 2, 1)   // 1=CPF, 2=CNPJ
+	oPag["numeroInscricao"] := nDocPag
+	oPag["nome"]            := AllTrim(aDatSacado[1])
+	oPag["endereco"]        := AllTrim(aDatSacado[3])
+	oPag["cep"]             := cCEPNum
+	oPag["cidade"]          := AllTrim(aDatSacado[4])
+	oPag["bairro"]          := cBairro
+	oPag["uf"]              := AllTrim(aDatSacado[5])                     // (antes estava usando cidade por engano)
+	oPag["telefone"]        := AllTrim(SA1->A1_DDD) + AllTrim(SA1->A1_TEL)
+	oJsonBB["pagador"]      := oPag
+
+// Beneficiário final
+	oBenFinal["tipoInscricao"]   := 2
+	oBenFinal["numeroInscricao"] := nDocBen
+	oBenFinal["nome"]            := Upper(AllTrim(aDadosEmp[1]))
+	oJsonBB["beneficiarioFinal"] := oBenFinal
+
+// PIX
+	//oJsonBB["indicadorPix"] := "S"
+	oRestBB := FwRest():New( ::cURL )
+	oRestBB:SetPath( ::cPath )
+	oRestBB:SetPostParams(oJsonBB:ToJson())
+	if oRestBB:Post( ::aHeader )
+		::cResult := oRestBB:GetResponse()
+	else
+		::cResult := "Erro na requisição: " + oRestBB:GetErrorMsg()
+	endif
+Return
+
+/*/{Protheus.doc} bancodobrasil::geratoken
+description
+@type method
+@version  
+@author iglal
+@since 10/28/2025
+@return variant, return_description
+/*/
+method geratoken() class bancodobrasil
+
+	Local cURL      := "https://oauth.bb.com.br/oauth/token"
+	//Local nTimeOut  := 120
+	Local aHeadStr  := {}
+	Local cHeadRet  := ""
+	//Local cPostRet  := ""
+	local cHeaderGet as character
+	//Local cClientID := SuperGetMV("BE_BBCLIENTID",.T.,"")
+	//Local cClientSec:= SuperGetMV("BE_BBCLIENTSEC",.T.,"")
+	//Local cAc_Token := ""
+
+	//cAc_Token := "grant_type=client_credentials"
+	//cAc_Token += "&client_id=" + cClientID+""
+	//cAc_Token += "&client_secret=" + cClientSec+""
+	Aadd(aHeadStr, "Authorization: "+cBasic)
+	Aadd(aHeadStr, "Content-Type: application/x-www-form-urlencoded")
+
+	cPostParms := "grant_type=client_credentials"
+	cPostParms += "&scope=cobrancas.boletos-info cobrancas.boletos-requisicao"
+
+
+	//::cResult := HTTPSPost( cURL, "", "", "", "", cAc_Token, nTimeOut, aHeadOut, @cHeadRet )
+	::cResult := HTTPPost(cUrl, /*cGetParms*/, cPostParms, /*nTimeOut*/, aHeadStr, @cHeaderGet)
+
+	//Exibe o retorno do POST e também o header de retorno
+	ConOut("Retorno do POST gToken:", ::cResult)
+	ConOut("Header do POST gToken:", cHeadRet)
+
+	//Transforma o retorno em um JSON
+	jJsonToken := JsonObject():New()
+	jJsonToken:FromJson(::cResult)
+return (jJsonToken)
