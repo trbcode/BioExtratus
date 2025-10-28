@@ -94,7 +94,7 @@ user function FA040ALT()
 
 			aDados[1] := aBancos[nPOS][3]
 			aDados[4] := 'Pague preferencialmente no SICOOB.'  			// Local de pagamento
-			aDados[5] := substr(dtos(SE1->E1_VENCREA),7,2)+"/"+substr(dtos(SE1->E1_VENCREA),5,2)+"/"+substr(dtos(SE1->E1_VENCREA),1,4)	//Vencimento
+			aDados[5] := substr(dtos(M->E1_VENCREA),7,2)+"/"+substr(dtos(M->E1_VENCREA),5,2)+"/"+substr(dtos(M->E1_VENCREA),1,4)	//Vencimento
 			aDados[6] :=  cNomeCed                                     //Nome do Cedente
 			aDados[7] :=  aBancos[nPOS][10] + "/" + aBancos[nPOS][8]   //Agencia / Codigo Convênio
 			aDados[8] := substr(dtos(SE1->E1_EMISSAO),7,2)+"/"+substr(dtos(SE1->E1_EMISSAO),5,2)+"/"+substr(dtos(SE1->E1_EMISSAO),1,4)	//Data de Emissao

@@ -27,7 +27,7 @@ User Function BEFINM01(cTipo)
 	Local cDatFim   := ""
 	Local aBancos   := {}
 	Local nPOS      := 1
-	local cBanco   := ""
+    local cBanco   := ""
 	local cAgencia := " "
 	local cConta   := "      "
 
@@ -43,24 +43,25 @@ User Function BEFINM01(cTipo)
 		cTipo := 'BIO'
 	end if
 
-	IF cTipo == 'BIO'
-		cBanco   := "756"
-		cAgencia := "4108 "
-		cConta   := "8429      "
-		cCodClie  := "e24ab947-b2b6-4c55-86fb-2662a014a63b"
-	ELSEIF cTipo == 'FUP'
-		cBanco   := GetMV("MV_XXFUPBA")
-		cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
-		cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
-		cCodClie  := "28477a68-ed9d-43a6-8e97-9a161917e7ca"
-
+		IF cTipo == 'BIO'
+			cBanco   := "756"
+			cAgencia := "4108 "
+			cConta   := "8429      "
+			//cCodClie  := "e24ab947-b2b6-4c55-86fb-2662a014a63b"			
+			cCodClie  := "e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
+		ELSEIF cTipo == 'FUP'
+			cBanco   := GetMV("MV_XXFUPBA")
+			cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
+			cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
+			cCodClie  := "28477a68-ed9d-43a6-8e97-9a161917e7ca"
+		
 		// FUPROM - Chikas
-	ELSEIF cTipo == 'FUPCHK'
-		cBanco   := GetMV("MV_XXFCHBA")
-		cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
-		cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
-		cCodClie  := "b7e6001d-1131-4687-a8b5-c7262f146f89"
-	ENDIF
+		ELSEIF cTipo == 'FUPCHK'
+			cBanco   := GetMV("MV_XXFCHBA")
+			cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
+			cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
+			cCodClie  := "b7e6001d-1131-4687-a8b5-c7262f146f89"			
+		ENDIF
 
 	AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
 
