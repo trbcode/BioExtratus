@@ -11,72 +11,142 @@ Classe responsável pelas integrações com Banco do Brasil via API REST
 class bancodobrasil
 
 	Data cURL                   as Character
-	Data cPath                  as Character
-	Data cAuthorization         as Character
-	Data cAppToken              as Character
+	Data cClientID              as Character
+	Data cClientSecret          as Character
+	Data cAuthBasic             as Character
 	Data cToken                 as Character
 	Data numeroVariacaoCarteira as Character
-	Data cCodigoConvenio        as Character
+	Data codigoConvenio         as Character
 	Data codigoBanco            as Character
 	Data codigoAgencia          as Character
 	Data codigoConta            as Character
-	Data aHeader                as Array
+	Data codigoModalidade			  as Character
+	Data numeroCarteira				  as Character
+	Data appKey                 as Character
+	Data codigoBarra					  as Character
+	Data linhaDigitavel				  as Character
+	Data qrCodeUrl					    as Character
+	Data qrCodeTxId				      as Character
+	Data qrCodeEmv				      as Character
+	Public Data aHeader         as Array
 	Public Data cResult         as Character
+	Public Data urlImagemBoleto as Character
 
 	public method new()
-	public method InitSession()
-	public method incluiboletos()
+	public method registraboletos()
 	public method alteraboletos()
 	public method excluiboletos()
 	public method recebeboletos()
 	public method geratoken()
 
 endclass
-
-method new() class bancodobrasil
-Return self
-
-method InitSession() class bancodobrasil
+/*/{Protheus.doc} bancodobrasil::new
+Cria objeto integração Banco do Brasil
+@type method
+@version  
+@author Igor Guimaraes
+@since 11/2/2025
+@param codigoBanco, character, codigo do banco
+@param codigoAgencia, character, codigo da agencia
+@param codigoConta, character, codigo da conta
+@param codigoConvenio, character, codigo do convenio
+@param numeroVariacaoCarteira, character, numero da variacao da carteira
+@param codigoModalidade, character, codigo da modalidade
+@param numeroCarteira, character, numero da carteira
+@param cClientID, character, client ID
+@param cClientSecret, character, client secret
+@return variant, return_description
+/*/
+method new(codigoBanco as Character, codigoAgencia as Character, codigoConta as Character, codigoConvenio as Character, numeroVariacaoCarteira as Character, codigoModalidade as Character, numeroCarteira as Character, cClientID as Character, cClientSecret as Character) class bancodobrasil
 
 	Local oToken      As Object
+	Local _aHeader		:= {}
 
-	oToken := ::geratoken()
-	::cToken := oToken['token_type']+space(1)+oToken['access_token']
+	::cClientID              := cClientID
+	::cClientSecret          := cClientSecret
+	::cAuthBasic             := "Basic " + Encode64(::cClientID + ":" + ::cClientSecret)
+	oToken                   := ::geratoken()
+	::cToken                 := oToken['token_type']+space(1)+oToken['access_token']
+	::cURL                   := "https://api.bb.com.br/cobrancas/v2"
+	::appKey                 := "gw-dev-app-key=61e42175360c102fb3abbee54097602b"
+	::codigoBanco            := codigoBanco
+	::codigoAgencia          := codigoAgencia
+	::codigoConta            := codigoConta
+	::codigoConvenio         := codigoConvenio
+	::numeroVariacaoCarteira := numeroVariacaoCarteira
+	::codigoModalidade       := codigoModalidade
+	::numeroCarteira         := numeroCarteira
 
-	aadd(::aHeader, "Authorization: "+cToken)
-	aadd(::aHeader, "Content-Type: application/json")
+	aadd(_aHeader, "Authorization: "+::cToken)
+	aadd(_aHeader, "Content-Type: application/json")
 
-	::cURL  := "https://api.bb.com.br/cobrancas/v2/boletos"
-	::cCodigoConvenio := "4108"
-Return
+	::aHeader               := aClone(_aHeader)
 
-method incluiboletos() class bancodobrasil
+Return self
 
+/*/{Protheus.doc} bancodobrasil::registraboletos
+Registra título no Banco do Brasil
+@type method
+@version  
+@author igor guimaraes
+@since 11/2/2025
+@param prefixo, character, prefixo do título
+@param numero, character, número do título
+@param parcela, character, parcela do título
+@param tipo, character, tipo do título
+@return variant, retorno da inclusão do título
+/*/
+method registraboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character) class bancodobrasil
+
+	Local oRestBB	    As Object
 	Local oJsonBB     := JsonObject():New()
 	Local oDesc       := JsonObject():New()
 	Local oJuros      := JsonObject():New()
 	Local oMulta      := JsonObject():New()
 	Local oPag        := JsonObject():New()
 	Local oBenFinal   := JsonObject():New()
-	Local oRestBB	    As Object
+	Local oResponse	  := JsonObject():New()
+	Local cPath       := ""
+	Local appkey      := ::appKey
+	Local nVlrAbat	  := 0.00
+	Local codigoCNPJ	:= ""
+	Private oObj	As Object
 
-	::cPath := "/boletos?"+SuperGetMV("BE_BBBASIC",.T.,"gw-dev-app-key=7091808b0bffbed01366e181d0050056b941a5b1")
+	cPath := "/boletos?" + appkey
+
+	codigoCNPJ := Subs(SM0->M0_CGC,1,2)+"."
+	codigoCNPJ += Subs(SM0->M0_CGC,3,3)+"."
+	codigoCNPJ += Subs(SM0->M0_CGC,6,3)+"/"
+	codigoCNPJ += Subs(SM0->M0_CGC,9,4)+"-"
+	codigoCNPJ += Subs(SM0->M0_CGC,13,2)
+
+	codigoCNPJ := cvaltochar(val(STRTRAN(STRTRAN(STRTRAN(STRTRAN(STRTRAN(Alltrim(codigoCNPJ),"CNPJ:",""),".",""),"/",""),"-","")," ","")))
+	::cResult := ""
+	DbSelectArea("SE1")
+	SE1->(DbSetorder(1))
+	SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
+
+	nVlrAbat := U_xSomaAbat( prefixo, titulo, parcela, "R", SE1->E1_MOEDA, , SE1->E1_CLIENTE, SE1->E1_LOJA )
+
+	dbSelectArea("SA1")
+	SA1->(dbSetOrder(1))
+	SA1->(dbSeek(xFilial("SA1") + SE1->E1_CLIENTE + SE1->E1_LOJA))
+
 // Campos raiz
-	oJsonBB["numeroConvenio"]                        := Val(cCodConv) // ou ::cCodigoConvenio, se estiver em uma classe
-	oJsonBB["dataVencimento"]                        := StrTran(Dtoc(StoD(aDadosTit[4])),"/",".")
-
-	oJsonBB["valorOriginal"]                         := aDadosTit[5]
-	oJsonBB["numeroCarteira"]                        := nCarteira
-	oJsonBB["numeroVariacaoCarteira"]                := nVariacao
-	oJsonBB["codigoModalidade"]                      := nModalidade
-	oJsonBB["dataEmissao"]                           := StrTran(Dtoc(StoD(aDadosTit[2])),"/",".")
+	oJsonBB["numeroConvenio"]                        := Val(::codigoConvenio) // ou ::codigoConvenio, se estiver em uma classe
+	oJsonBB["dataVencimento"]                        := StrTran(Dtoc(SE1->E1_VENCTO),"/",".")
+	oJsonBB["valorOriginal"]                         := SE1->E1_SALDO - nVlrAbat + SE1->E1_ACRESC - SE1->E1_DECRESC
+	oJsonBB["numeroCarteira"]                        := ::numeroCarteira
+	oJsonBB["numeroVariacaoCarteira"]                := ::numeroVariacaoCarteira
+	oJsonBB["codigoModalidade"]                      := ::codigoModalidade
+	oJsonBB["dataEmissao"]                           := StrTran(Dtoc(SE1->E1_EMISSAO),"/",".")
 
 	oJsonBB["codigoAceite"]                          := "A"
 	oJsonBB["codigoTipoTitulo"]                      := 2
 	oJsonBB["descricaoTipoTitulo"]                   := "DM"
 	oJsonBB["indicadorPermissaoRecebimentoParcial"]  := "N"
-	oJsonBB["numeroTituloBeneficiario"]              := aDadosTit[1]
-	oJsonBB["numeroTituloCliente"]                   := "000" + aCB_RN_NN[3]
+	oJsonBB["numeroTituloBeneficiario"]              := Alltrim(titulo) + AllTrim(parcela)
+	oJsonBB["numeroTituloCliente"]                   := "000" + ::codigoConvenio + StrZero(Val(Right(Alltrim(titulo),07)),07) + StrZERO(Val(Alltrim(parcela)),3)
 
 // Desconto
 	oDesc["tipo"] := 0 //Domínio: 0 - Sem desconto; 1 - Valor fixo até a data informada; 2 - percentual até a data informada.
@@ -92,73 +162,218 @@ method incluiboletos() class bancodobrasil
 	oJsonBB["multa"] := oMulta
 
 // Pagador
-	oPag["tipoInscricao"]   := Iif(AllTrim(aDatSacado[8]) == "J", 2, 1)   // 1=CPF, 2=CNPJ
-	oPag["numeroInscricao"] := nDocPag
-	oPag["nome"]            := AllTrim(aDatSacado[1])
-	oPag["endereco"]        := AllTrim(aDatSacado[3])
-	oPag["cep"]             := cCEPNum
-	oPag["cidade"]          := AllTrim(aDatSacado[4])
-	oPag["bairro"]          := cBairro
-	oPag["uf"]              := AllTrim(aDatSacado[5])                     // (antes estava usando cidade por engano)
+	oPag["tipoInscricao"]   := Iif(AllTrim(SA1->A1_PESSOA) == "J", 2, 1)   // 1=CPF, 2=CNPJ
+	oPag["numeroInscricao"] := cvaltochar(val(Alltrim(SA1->A1_CGC)))
+	oPag["nome"]            := AllTrim(SA1->A1_NOME)
+	oPag["endereco"]        := STRTRAN(if(empty(AllTrim(SA1->A1_ENDCOB)),AllTrim(SA1->A1_END),AllTrim(SA1->A1_ENDCOB)),"-"," ")
+	oPag["cep"]             := if(empty(SA1->A1_CEPC),SA1->A1_CEP,SA1->A1_CEPC)
+	oPag["cidade"]          := if(empty(SA1->A1_MUNC),AllTrim(SA1->A1_MUN),AllTrim(SA1->A1_MUNC))
+	oPag["bairro"]          := STRTRAN(if(empty(AllTrim(SA1->A1_BAIRROC)),AllTrim(SA1->A1_BAIRRO),AllTrim(SA1->A1_BAIRROC)),"-"," ")
+	oPag["uf"]              := AllTrim(if(empty(SA1->A1_ESTC),SA1->A1_EST,SA1->A1_ESTC))                     // (antes estava usando cidade por engano)
 	oPag["telefone"]        := AllTrim(SA1->A1_DDD) + AllTrim(SA1->A1_TEL)
 	oJsonBB["pagador"]      := oPag
 
 // Beneficiário final
 	oBenFinal["tipoInscricao"]   := 2
-	oBenFinal["numeroInscricao"] := nDocBen
-	oBenFinal["nome"]            := Upper(AllTrim(aDadosEmp[1]))
+	oBenFinal["numeroInscricao"] := codigoCNPJ
+	oBenFinal["nome"]            := Upper(AllTrim(SM0->M0_NOMECOM))
 	oJsonBB["beneficiarioFinal"] := oBenFinal
 
 // PIX
-	//oJsonBB["indicadorPix"] := "S"
+	oJsonBB["indicadorPix"] := "S"
 	oRestBB := FwRest():New( ::cURL )
-	oRestBB:SetPath( ::cPath )
+	oRestBB:SetPath( cPath )
 	oRestBB:SetPostParams(oJsonBB:ToJson())
+
 	if oRestBB:Post( ::aHeader )
-		::cResult := oRestBB:GetResponse()
+		If FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+			oResponse:FromJson(oRestBB:GetResult())
+			::cResult            := oRestBB:GetResult()
+			::codigoBarra        := oResponse['codigoBarraNumerico']
+			::linhaDigitavel     := oResponse['linhaDigitavel']
+			::qrCodeUrl          := oResponse["qrCode"]['url']
+			::qrCodeTxId         := oResponse["qrCode"]['txId']
+			::qrCodeEmv          := oResponse["qrCode"]['emv']
+			::urlImagemBoleto    := oResponse['urlImagemBoleto']
+			oResponse['code']    := oRestBB:oResponseH:CSTATUSCODE
+			oResponse['status']  := oRestBB:oResponseH:LLEGACYSUCCESS
+			oResponse['message'] := oRestBB:oResponseH:CREASON +' - '+ 'Título registrado com sucesso no Banco do Brasil'
+			::cResult += oResponse:tojson()
+			If (Empty(SE1->E1_NUMBCO) .or. Empty(SE1->E1_AGEDEP) .or. Empty(SE1->E1_CONTA) .or. Empty(SE1->E1_PORTADO))
+				RecLock("SE1",.F.)
+				Replace SE1->E1_NUMBCO   with oResponse['numero']           //nosso numero
+				Replace SE1->E1_NOSNUM   with oResponse['numero']           //nosso numero
+				Replace SE1->E1_MOVIMEN	 with ddatabase                     //Data movimentação
+				Replace SE1->E1_PORTADO	 with ::codigoBanco                 //codigo banco
+				Replace SE1->E1_AGEDEP 	 with ::codigoAgencia               //agencia sem DV
+				Replace SE1->E1_CONTA  	 with ::codigoConta                 //conta sem DV
+				Replace SE1->E1_SITUACA	 with "1"                           //Situação do Título - 0=Carteira;1=Cob.Simples;2=Descontada;3=Caucionada;4=Vinculada;5=Advogado;6=Judicial
+				Replace SE1->E1_XXBOIMP  with "S"                             //Coloca como ja impresso
+				Replace SE1->E1_OK       with ""                              //Para retirar a seleção do campo assim que é impresso
+				Replace SE1->E1_XQRCODE  with ::qrCodeEmv                     //QRCode
+				Replace SE1->E1_CODBAR   with ::codigoBarra                   //Código de Barra
+				Replace SE1->E1_CODDIG   with ::linhaDigitavel                //Linha Digitável
+				MsUnLock()
+			Endif
+		EndIf
 	else
-		::cResult := "Erro na requisição: " + oRestBB:GetErrorMsg()
+		FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+		oResponse['code']    := oRestBB:oResponseH:CSTATUSCODE
+		oResponse['status']  := oRestBB:oResponseH:LLEGACYSUCCESS
+		oResponse['message'] := DECODEUTF8(oObj:ERROS[1]['MENSAGEM'])
+		::cResult += oResponse:tojson()
 	endif
 Return
 
 /*/{Protheus.doc} bancodobrasil::geratoken
-description
+Gera token de autenticação para API Banco do Brasil
 @type method
-@version  
-@author iglal
+@version 1.0
+@author Igor Guimaraes
 @since 10/28/2025
 @return variant, return_description
 /*/
 method geratoken() class bancodobrasil
 
-	Local cURL      := "https://oauth.bb.com.br/oauth/token"
-	//Local nTimeOut  := 120
-	Local aHeadStr  := {}
-	Local cHeadRet  := ""
-	//Local cPostRet  := ""
-	local cHeaderGet as character
-	//Local cClientID := SuperGetMV("BE_BBCLIENTID",.T.,"")
-	//Local cClientSec:= SuperGetMV("BE_BBCLIENTSEC",.T.,"")
-	//Local cAc_Token := ""
+	Local cURL    := "https://oauth.bb.com.br/oauth/token"
+	local cPostParms as Character
+	local cHeaderGet as Character
+	local aHeadStr  :={}//as array
+	Local cBasic    := ::cAuthBasic
 
-	//cAc_Token := "grant_type=client_credentials"
-	//cAc_Token += "&client_id=" + cClientID+""
-	//cAc_Token += "&client_secret=" + cClientSec+""
 	Aadd(aHeadStr, "Authorization: "+cBasic)
 	Aadd(aHeadStr, "Content-Type: application/x-www-form-urlencoded")
 
+	//Body campos
 	cPostParms := "grant_type=client_credentials"
 	cPostParms += "&scope=cobrancas.boletos-info cobrancas.boletos-requisicao"
-
+	//Efetua o POST na API
 
 	//::cResult := HTTPSPost( cURL, "", "", "", "", cAc_Token, nTimeOut, aHeadOut, @cHeadRet )
 	::cResult := HTTPPost(cUrl, /*cGetParms*/, cPostParms, /*nTimeOut*/, aHeadStr, @cHeaderGet)
 
 	//Exibe o retorno do POST e também o header de retorno
 	ConOut("Retorno do POST gToken:", ::cResult)
-	ConOut("Header do POST gToken:", cHeadRet)
+	ConOut("Header do POST gToken:", cHeaderGet)
 
 	//Transforma o retorno em um JSON
 	jJsonToken := JsonObject():New()
 	jJsonToken:FromJson(::cResult)
+
 return (jJsonToken)
+
+/*/{Protheus.doc} xSomaAbat
+description
+@type function
+@version  
+@author igor guimaraes
+@since 11/2/2025
+@param cPrefixo, character, param_description
+@param cNumero, character, param_description
+@param cParcela, character, param_description
+@param cCart, character, param_description
+@param nMoeda, numeric, param_description
+@param dData, date, param_description
+@param cFornCli, character, param_description
+@param cLoja, character, param_description
+@param cFilAbat, character, param_description
+@param dDataRef, date, param_description
+@param cTipo, character, param_description
+@return variant, return_description
+/*/
+User Function xSomaAbat(cPrefixo,cNumero,cParcela,cCart,nMoeda,dData,cFornCli,cLoja,cFilAbat, dDataRef, cTipo)
+
+	Local aArea  := GetArea()
+	Local nTotAbat  := 0
+	Local cAliasAbt := Alias()
+	Local nOrdem    := indexord()
+	//controle de abatimento pelo titpai
+	Local cAliasSoma := GetNextAlias()
+	Local cAbatiment
+
+	DEFAULT cCart    := If(cCart="R",cCart,"P")
+	DEFAULT nMoeda   := 1
+	DEFAULT dData    := dDataBase
+	DEFAULT cFilAbat := If(cCart=="R", xFilial("SE1"), xFilial("SE2"))
+	DEFAULT cFornCli := If(cCart=="R", SE1->E1_CLIENTE, SE2->E2_FORNECE)
+	DEFAULT cLoja    := If(cCart=="R", SE1->E1_LOJA, SE2->E2_LOJA)
+	DEFAULT cTipo	 := If(cCart=="R", SE1->E1_TIPO, SE2->E2_TIPO)
+	DEFAULT dDataRef := dDataBase
+	Default cTipo:= ""
+
+	If cCart == "R"
+		If Select("__SE1") == 0
+			ChkFile("SE1",.F.,"__SE1")
+		Else
+			DbSelectArea("__SE1")
+		EndIf
+		cAbatiment := " E1_TIPO LIKE '%-' "
+		IF FwIsInCallStack("FINR340")
+			cAbatiment := "("+cAbatiment + " OR E1_TIPO = '"+MVIRF+"')"
+		EndIf
+
+		cAbatiment := "%" + cAbatiment + "%"
+
+		BeginSql Alias cAliasSoma
+		Column EMISSAO As Date
+		select E1_EMISSAO EMISSAO, E1_TIPO TIPO,E1_MOEDA MOEDA, E1_TXMOEDA TXMOEDA, E1_VALOR VALOR, E1_SALDO SALDO
+			from %Table:SE1% SE1
+			where E1_FILIAL    = %Exp:cFilAbat%
+			and E1_PREFIXO   = %Exp:cPrefixo%
+			and E1_NUM       = %Exp:cNumero%
+			and E1_PARCELA   = %Exp:cParcela%
+			and %Exp:cAbatiment%
+			and (E1_CLIENTE  = %Exp:cFornCli% or E1_CLIENTE  = 'UNIAO ')
+			and (E1_LOJA     = %Exp:cLoja%    or E1_CLIENTE  = 'UNIAO ')
+			and E1_EMISSAO  <= %Exp:dDataRef%
+			and E1_TITPAI	   = %Exp:cPrefixo+cNumero+cParcela+cTipo+cFornCli+cLoja%
+			AND SE1.%NotDel%
+		EndSql
+	ELSE
+		IF SELECT("__SE2") == 0
+			ChkFile("SE2",.F.,"__SE2")
+		Else
+			DbSelectArea("__SE2")
+		EndIf
+		cAbatiment := " E2_TIPO LIKE '%-' "
+
+		cAbatiment := "%" + cAbatiment + "%"
+
+		BeginSql Alias cAliasSoma
+		Column EMISSAO As Date
+		select E2_EMISSAO EMISSAO, E2_TIPO TIPO,E2_MOEDA MOEDA, E2_TXMOEDA TXMOEDA, E2_VALOR VALOR, E2_SALDO SALDO
+		from %Table:SE2% SE2
+		where E2_FILIAL   = %Exp:cFilAbat%
+			and E2_PREFIXO  = %Exp:cPrefixo%
+			and E2_NUM      = %Exp:cNumero%
+			and E2_PARCELA  = %Exp:cParcela%
+			and %Exp:cAbatiment%
+			and E2_FORNECE  = %Exp:cFornCli%
+			and E2_LOJA     = %Exp:cLoja%
+			and E2_EMISSAO <= %Exp:dDataRef%
+			and SE2.%NotDel%
+		EndSql
+
+	ENDIF
+	DbSelectArea(cAliasSoma)
+
+
+	While (cAliasSoma)->(!Eof())
+		//----------------------------------------------------------------------
+		// Validacao inserida para o processo de baixa parcial da Ordem de Pago
+		// evitando que o titulo de abatimento seja descontado mais de uma vez
+		//----------------------------------------------------------------------
+		If (cAliasSoma)->SALDO > 0 .Or. !(FwIsInCallStack("FINA085A") .Or. FwIsInCallStack("FINA850"))
+			nTotAbat += xMoeda((cAliasSoma)->VALOR,(cAliasSoma)->MOEDA,nMoeda,;
+				Iif(AllTrim((cAliasSoma)->TIPO) == "IR-", (cAliasSoma)->EMISSAO, dData),,If(cPaisLoc=="BRA",(cAliasSoma)->TXMOEDA,0))
+		EndIf
+		(cAliasSoma)->(dbSkip())
+	EndDo
+	(cAliasSoma)->(dbCloseArea())
+
+	If !Empty(cAliasAbt)
+		DbSelectArea(cAliasAbt)
+		DbSetOrder(nOrdem)
+	Endif
+	RestArea(aArea)
+Return(nTotAbat)

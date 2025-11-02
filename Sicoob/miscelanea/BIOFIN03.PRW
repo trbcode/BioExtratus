@@ -13,6 +13,8 @@
 #include "totvs.ch"
 #INCLUDE 'FWMVCDEF.CH'
 #INCLUDE "RPTDEF.CH"
+
+
 /*/{Protheus.doc} BIOFIN03
 Geração de Boletos
 @author Luciana Rodrigues
@@ -38,50 +40,105 @@ Geração de Boletos
 /*/
 User Function BIOFIN03(cTpBol)
 
-	private cDataInicio := '20240918'
+	Private cCodBco		:= "756"
+	Private cCodAge		:= "4108"
+	Private cCodCta		:= "8429"
+	Private oCodBco, oCodAge, oCodCta, oPanel
+	Private oFont25		:= TFont():New("arial",,25,,.F.,,,,,.F.,.F.)
+	Private oFont20		:= TFont():New("arial",,20,,.F.,,,,,.F.,.F.)
+	Private aBcosApt := {}
+	Private cDataInicio := '20240918'
+	Private aRelBco 	:= {} //Array com os bancos disponíveis
 	Private oMark	              //Para controle da seleção (check)
-	private cTipo		:= Alltrim(cTpBol)
+	Private cTipo		:= Alltrim(cTpBol)
 	Private aBancos   	:= {}     //Array usado em todas as funções que conterá dados do banco selecionado
-	Private aDados[38]            //Array usado para receber os dados do boleto atual
+	Private aDados[43]            //Array usado para receber os dados do boleto atual
 	Private cTitulos              //Titulos que foram selecionados
 	Private cMarc    	:= ""     //Titulos marcados
 	Private aRotina  	:= MenuDef()
 	Private lLogin      := Type("cEmpAnt") != "U"
 	Private cNoPrint := ""
 	private CTdos := ""
+	private cCodClie := ""
+	private oDlg1 as Object
+	private oSize  as Object
+	private cBanco   := ""
+	private cAgencia := ""
+	private cConta   := ""
 
 	If !lLogin
 		RpcSetEnv("01","01","Admin")
 	EndIf
 
-	if alltrim(cTipo) ==''
-		cTipo := 'BIO'
-	end if
+	if empty(aRelBco)
+		GetBancos()
+		cBanco   := cCodBco
+		cAgencia := Padr(cCodAge, TamSX3("EE_AGENCIA")[1])
+		cConta   := Padr(cCodCta, TamSX3("EE_CONTA"	 )[1])
 
-	IF cTipo == 'BIO'
-		cBanco   := "756"
-		cAgencia := "4108 "
-		cConta   := "8429      "
-		cCodClie := "e24ab947-b2b6-4c55-86fb-2662a014a63b"
 		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
 		cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
-	ELSEIF cTipo == 'FUP'
-		cBanco   := GetMV("MV_XXFUPBA")
-		cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
-		cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
-		cCodClie := "28477a68-ed9d-43a6-8e97-9a161917e7ca"
-		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
-		cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
+	endif
 
-	ELSEIF cTipo == 'FUPCHK'
-		cBanco   := GetMV("MV_XXFCHBA")
-		cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
-		cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
-		cCodClie := "b7e6001d-1131-4687-a8b5-c7262f146f89"
-		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
-		cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
-	ENDIF
+	if empty(aRelBco)
+		if alltrim(cTipo) ==''
+			cTipo := 'BIO'
+		endif
+		IF cTipo == 'BIO'
+			cBanco   := "756"
+			cAgencia := "4108 "
+			cConta   := "8429      "
+			cCodClie := "e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
+			cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+			cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+		ELSEIF cTipo == 'FUP'
+			cBanco   := GetMV("MV_XXFUPBA")
+			cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
+			cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
+			cCodClie := "5ed00c38-279b-4979-aa91-f8d0cf003b40"
+			cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
+			cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
 
+		ELSEIF cTipo == 'FUPCHK'
+			cBanco   := GetMV("MV_XXFCHBA")
+			cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
+			cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
+			cCodClie := "fa7c41d6-6b16-4c3e-9a14-df89f799ff7d"
+			cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
+			cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
+		ENDIF
+	endif
+	//Defino o tamanho dos componentes através do método FwDefSize(), amarrando ao objeto oDlg
+	oSize := FwDefSize():New(.T.)
+
+	oSize:lLateral := .F.
+	oSize:lProp	:= .T. // Proporcional
+
+	oSize:AddObject( "LABEL" ,  100, 02, .T., .T. ) // Totalmente dimensionavel
+	oSize:AddObject( "SELECT",  100, 98, .T., .T. ) // Totalmente dimensionavel
+
+	oSize:Process() // Dispara os calculos
+
+	a1stRow := {oSize:GetDimension("LABEL","LININI"),;
+		oSize:GetDimension("LABEL","COLINI"),;
+		oSize:GetDimension("LABEL","LINEND"),;
+		oSize:GetDimension("LABEL","COLEND")}
+
+	a2ndRow := {oSize:GetDimension("SELECT","LININI"),;
+		oSize:GetDimension("SELECT","COLINI"),;
+		oSize:GetDimension("SELECT","XSIZE"),;
+		oSize:GetDimension("SELECT","YSIZE")}
+
+	DEFINE MSDIALOG oDlg1 TITLE "Baixa em Lote" FROM oSize:aWindSize[1],oSize:aWindSize[2] TO oSize:aWindSize[3],oSize:aWindSize[4] OF oMainWnd PIXEL  //"Baixa em Lote"
+
+	@ a1stRow[1], a1stRow[2] + 005 Say "Banco:" FONT oFont25 PIXEL Of oDlg1
+	@ a1stRow[1]-3, a1stRow[2] + 040 MSCOMBOBOX oCodBco VAR cCodBco ITEMS aRelBco SIZE 030, 20 FONT oFont20 PIXEL Of oDlg1 Valid setBanco()
+	@ a1stRow[1], a1stRow[2] + 120 Say "Agência:" FONT oFont25 PIXEL Of oDlg1
+	@ a1stRow[1]+3, a1stRow[2] + 170 Say oCodAge VAR cCodAge Picture PesqPict("SEE","EE_AGENCIA") SIZE 50,10 FONT oFont20 PIXEL of oDlg1
+	@ a1stRow[1], a1stRow[2] + 230 Say "Conta:" FONT oFont25 PIXEL Of oDlg1
+	@ a1stRow[1]+3, a1stRow[2] + 270 Say oCodCta VAR cCodCta Picture PesqPict("SEE","EE_CONTA") SIZE 70,10 FONT oFont20 PIXEL of oDlg1
+
+	oPanel := TPanel():New(a2ndRow[1]+10,a2ndRow[2],'',oDlg1,, .T., .T.,, ,a2ndRow[3],a2ndRow[4])
 
 	//MsgInfo("00 - ESSA É A NOVA TELA DE REGISTRO DE BOLETOS!", "ATENCAO!")
 	//Instancia a classe com objeto de browse com marcação
@@ -99,7 +156,7 @@ User Function BIOFIN03(cTpBol)
 
 	//Define o campo de marcação
 	oMark:SetFieldMark('E1_OK')
-
+	oMark:SetOwner(oPanel)
 	//Define a legenda
 	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) <>  'S' .AND. ALLTRIM(E1_NOSNUM)=='' ", "GREEN"	,  "Não Impresso")
 	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) ==  'S' .AND. ALLTRIM(E1_NOSNUM)<>'' ", "BLACK"	,  "Impresso e Enviado ao Banco")
@@ -112,6 +169,8 @@ User Function BIOFIN03(cTpBol)
 	U_NOPRINT()
 
 	oMark:Activate()
+
+	ACTIVATE MSDIALOG oDlg1 ON INIT EnchoiceBar(oDlg1,{|| lRet := .T., If(.T. , oDlg1:End(),lRet := .F.)},{|| oDlg1:End()}) CENTERED
 	cMarc := ''
 
 
@@ -124,7 +183,7 @@ description
 //Função para definição do menu
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -135,7 +194,8 @@ Static Function MenuDef()
 
 
 	ADD OPTION aRotina TITLE 'Verificar NCC'   	ACTION 'U_VerNCC()'     OPERATION 3 ACCESS 0
-	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie  )'    OPERATION 2 ACCESS 0
+	ADD OPTION aRotina TITLE 'Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie, .F.  )'    OPERATION 2 ACCESS 0
+	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
 /*	ADD OPTION aRotina TITLE 'Baixas Sicoob'	ACTION 'U_BEFINM01()'   OPERATION 1 ACCESS 0// */
@@ -151,7 +211,7 @@ description
 //Função para selecionar os títulos da janela do FWMarkBrowse
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -172,7 +232,7 @@ Return
 description
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -186,7 +246,7 @@ description
 //Busca todos os boletos que ja foram impressos e não impressos
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -202,7 +262,7 @@ description
 //Busca todos os boletos que ja foram não impressos
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -218,11 +278,11 @@ description
 //Função para processar os boletos
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
-User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
+User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 
 	local lRet       := .f.
 	local nVlrAbat   := 0
@@ -231,24 +291,22 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 	local aDatSacado := {}
 	local aBolText   := {"","",""}
 	Local nDiasLim   := 180
+	Local oResultado := JsonObject():New()
+	Local auxMulta   :=""
+	Local auxJur     :=""
 	private cPerg2	:= "BIOFIN03"
 	private cFilePrint := ""
+	private oBancoBB as Object
+
+	if cCodBco == "001"
+		IntegBB()
+	endif
 
 	IF SE1->E1_XXBOIMP <> 'S' .AND. SM0->M0_CODIGO == '01'
 		//Procura se o banco selecionado está no array de bancos com boletos desenvolvidos e retorna os dados do banco
 		setBanc()   //Seta o array de bancos
 		nPOS := checkBanc(alltrim(cBanco))
 	ENDIF
-
-	//PADRONIZAÇÃO - PADRONIZANDO PARA UM BANCO SOMENTE
-	IF ! MsgYesNo(" Tem certeza que deseja gerar o(s) boleto(s) selecionado(s) para: <br>" ;
-			+ "<b>Banco:</b> " 	+ cBanco 	+ "<br>";
-			+ "<b>Agência:</b> "+ cAgencia 	+ "<br>";
-			+ "<b>Conta:</b> "	+ cConta	+ "? "	, "Atenção")
-		return .F.
-	endif
-
-	//Tirando as perguntas e colocando direto o banco.
 
 	//Tratando os códigos de retorno
 	If Len(cMarc) > 0
@@ -257,12 +315,19 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 		cMarc := ""
 	endif
 
-
 	If len(cMarc) == 0
 		ApMsgInfo("02 - Selecione algum título para geração dos boletos!")
 		return
 	Else
 		cTitulos := cMarc
+	endif
+
+	//PADRONIZAÇÃO - PADRONIZANDO PARA UM BANCO SOMENTE
+	IF ! MsgYesNo(" Tem certeza que deseja gerar o(s) boleto(s) selecionado(s) para: <br>" ;
+			+ "<b>Banco:</b> " 	+ cBanco 	+ "<br>";
+			+ "<b>Agência:</b> "+ cAgencia 	+ "<br>";
+			+ "<b>Conta:</b> "	+ cConta	+ "? "	, "Atenção")
+		return .F.
 	endif
 
 	//Gera consulta temporária dos títulos selecionados
@@ -308,7 +373,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 	//tratando parâmetros do banco
 	nDvAgencia      	:=  alltrim(SEE->EE_DVAGE)
 	NDvConta        	:=  alltrim(SEE->EE_DVCTA)
-	cCodced		  		:=  alltrim(cConta) + NdvConta
+	cCodced		  		  :=  alltrim(cConta) + NdvConta
 	cCodEmp         	:=  alltrim(SEE->EE_CODEMP)
 	cFaixaAtu       	:=  alltrim(SEE->EE_FAXATU)
 	cFaixaFim       	:=  alltrim(SEE->EE_FAXFIM)
@@ -403,15 +468,147 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 			endif
 		endif
 
+
+		//Tratando as mensagem  da SEE
+		aDados[28]:= cMens1                     //Mensagem 1
+
+		// Informa dados da NF no boleto
+		if (alltrim(QRY->E1_PARCELA)='')
+			aDados[29] := "PAGAMENTO REFERENTE A " + QRY->E1_PREFIXO + QRY->E1_NUM + QRY->E1_PARCELA + QRY->E1_TIPO          //Numero do documento
+		else
+			aDados[29] := "PAGAMENTO REFERENTE A " + QRY->E1_PREFIXO + QRY->E1_NUM + "/" +  QRY->E1_PARCELA + QRY->E1_TIPO   //Numero do documento
+		endif
+
+		//Tratando Juros / Desconto /Multa - Mensagens
+		IF cJuros > 0
+			xValJurMes := cJuros/100				//juros Mes
+			aDados[31] := xValJurMes				//Valor dos Juros
+		ENDIF
+
+		If cJurDia > 0
+			xValJurDIa := (cJurDia/100)				//Juros dia
+			aDados[32] := xValJurDIa				//Valor diário da Multa
+		endif
+
+		aDados[33]   := QRY->E1_DESCFIN/100			//Valor do Desconto
+		aDados[34]   := QRY->E1_DECRESC				//Valor do Desconto COM ncc
+		aDados[35]   := 0   						// VALOR DO NCC
+
+		//VERIFICANDO DIFERENÇA ENTRE SALDO E VALOR, SE TIVER, HOUVE UMA COMPENSAÇÃO
+		if (QRY->E1_SALDO <> QRY->E1_VALOR)
+
+			cQuerySC5 := " SELECT E5_DOCUMEN, E5_VALOR, E5_RECPAG, E5_TIPODOC  FROM " + RetSqlName("SE1") + "  "
+			cQuerySC5 += " INNER JOIN " + RetSqlName("SE5") + "  ON  "
+			cQuerySC5 += " E5_PREFIXO = E1_PREFIXO AND E5_NUMERO=E1_NUM AND E5_PARCELA = E1_PARCELA  "
+			cQuerySC5 += " WHERE "
+			cQuerySC5 += " E1_PREFIXO='" + QRY->E1_PREFIXO + " ' AND E1_NUM='" + QRY->E1_NUM + " ' AND E1_PARCELA='" + QRY->E1_PARCELA + " ' AND " + RetSqlName("SE5") + ".D_E_L_E_T_='' AND " + RetSqlName("SE1") + ".D_E_L_E_T_='' "
+
+			If Select('SE5QRY') <> 0
+				SE5QRY->(DbCloseArea())
+			endif
+
+			TCQUERY cQuerySC5  NEW ALIAS 'SE5QRY'
+
+			if SE5QRY->(EOF())
+
+				Alert("05 - ATENÇÃO: Há uma diferença de valor e saldo do título, favor verificar com o financeiro: Número:" + QRY->E1_NUM)
+				return .F.
+
+			else
+
+				aDados[35] := 0
+				aDados[36] := ""
+
+				While SE5QRY->(!Eof())
+
+					if SE5QRY->E5_RECPAG='R'
+
+						aDados[35]   += SE5QRY->E5_VALOR// VALOR DO NCC
+						aDados[36] += " " + AllTrim(Str(Val(SUBSTR(SE5QRY->E5_DOCUMEN, 4, 9))))    // AS LISTAS DAS NOTAS FISCAIS
+
+
+
+					else
+						aDados[35]   -= SE5QRY->E5_VALOR// VALOR DO ESTORNO
+					endif
+
+					SE5QRY->(DbSkip())
+
+				End Do
+			endif
+			SE5QRY->(DbCloseArea())
+		endif
+
+
+
+		//Tratando as mensagens
+
+		//Tratando Multa
+
+		aDados[21]:=  nValorReal                       //Valor Cobrado              //Não preencher
+		if aDados[31] <> 0 .and. aDados[31] <> NIL
+			nValor     := aDados[21] * aDados[31]    		//Valor * valor juros
+			auxMulta   := TRANSF(nValor,"@E 999,999.99")
+			aDados[39] := "MULTA DE R$" + Alltrim(auxMulta) + " APÓS O VENCIMENTO." 	//  Mensagem 2 Juros
+		ELSE
+			aDados[39] := ""
+		endif
+
+		//Tratando Juros por dia
+		If aDados[32] <> 0  .and. aDados[32] <> NIL
+			nValor  := (aDados[21] * aDados[32])/30		//Valor * valor juros dia
+			auxJur  := TRANSF(nValor,"@E 999,999.99")
+			aDados[40] := "APÓS VENCIMENTO JUROS DE R$" + Alltrim(auxJur) + " AO DIA."//   Mensagem  3 Multa
+		ELSE
+			aDados[40] := ""
+		EndIf
+
+		// Se existir juros e multa juntar as duas mensagens em apenas uma
+		IF !EMPTY(auxMulta) .AND.  !EMPTY(auxJur)
+			aDados[39] := "MULTA DE "+ Alltrim(auxMulta) +", JUROS DE R$" + Alltrim(auxJur) + " ad
+			aDados[40] := ""
+		ENDIF
+
+
+		//Tratando desconto no Financeiro
+		if aDados[34] <> 0   .and. aDados[34] <> NIL
+			nValor    :=  aDados[34]     //Valor * % desconto
+			auxDesc   := TRANSF(nValor,"@E 999,999.99")
+			aDados[41] := "CONCEDER ABATIMENTO DE R$ " + auxDesc + ""      //  Mensagem 4 Desconto
+		else
+			aDados[41] := ""
+		endif
+
+		//Tratando desconto na por NCC
+		if aDados[35] <> 0   .and. aDados[35] <> NIL
+			nValor    :=  aDados[35]     //Valor * % desconto
+			auxDesc   := TRANSF(nValor,"@E 999,999.99")
+			aDados[42] := "JÁ FOI DESCONTADO O VALOR DE R$" + Alltrim(auxDesc) //  Mensagem 5 Desconto NCC
+			aDados[43] := SubStr("NF(s): "+ Alltrim(aDados[36]), 1, 40) //Mensagem 5 Desconto NCC
+		else
+			aDados[42] := ""
+			aDados[43] := ""
+		endif
+
+
 		//Integração para registrar a cobrança no Sicoob.
 		IF cBanco== "756" .and. Empty(QRY->E1_XQRCODE)//sicoob
 			//(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolText,aDados,dDtaBx,cDatIni,cDatFim, cCodClie, cNossoNum)
 			cNossoNum  := U_MONTANUM (cBanco, alltrim(cCodEmp), cFaixaAtu, cFaixaFim, aBancos[nPOS])
-			lRet := U_BEWS0002("GER",aDadosEmp,aDadosTit,@aBancos,nPOS,aDatSacado,aBolText,@aDados, , , , cCodClie,cNossoNum)
+			lRet :=  U_BEWS0002("GER",aDadosEmp,aDadosTit,@aBancos,nPOS,aDatSacado,aBolText,@aDados, , , , cCodClie,cNossoNum)
 			If !lRet
 				MsgInfo("Boleto não registrado!","BEFINM01")
 				return // igor - provisório até definir regra
 			Endif
+		ElseIf cBanco == "001" .and. Empty(QRY->E1_CODBAR) //bb
+			oBancoBB:registraboletos(QRY->E1_PREFIXO, QRY->E1_NUM, QRY->E1_PARCELA, QRY->E1_TIPO)
+			cResult := oBancoBB:cResult
+			FWJsonDeserialize(cResult,@oResultado)
+			IF val(oResultado:CODE) >=  400 .and. val(oResultado:CODE) <= 599
+				FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + oResultado:MESSAGE, "Integração Banco do Brasil")
+			EndIf
+			FWAlertSuccess("Processamento finalizado", "Integração Banco do Brasil")
+			return
 		Else
 			aDados[2] := Alltrim(QRY->E1_CODBAR)
 			aDados[3] := Alltrim(QRY->E1_CODDIG)
@@ -518,75 +715,11 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 		aDados[25]:= cNomeCli                         //Sacado
 		aDados[26]:= cEndCed                          //Endereço do Cedente
 
-		//Tratando as mensagem  da SEE
-		aDados[28]:= cMens1                           //Mensagem 1
 
-		// Informa dados da NF no boleto
-		if (alltrim(QRY->E1_PARCELA)='')
-			aDados[29] := "PAGAMENTO REFERENTE A " + QRY->E1_PREFIXO + QRY->E1_NUM + QRY->E1_PARCELA + QRY->E1_TIPO          //Numero do documento
-		else
-			aDados[29] := "PAGAMENTO REFERENTE A " + QRY->E1_PREFIXO + QRY->E1_NUM + "/" +  QRY->E1_PARCELA + QRY->E1_TIPO   //Numero do documento
-		endif
 
 		aDados[30]:= ""   							 //Mensagem 3
 
-		//Tratando Juros / Desconto /Multa - Mensagens
-		IF cJuros > 0
-			xValJurMes := cJuros/100				//juros Mes
-			aDados[31] := xValJurMes				//Valor dos Juros
-		ENDIF
 
-		If cJurDia > 0
-			xValJurDIa := (cJurDia/100)				//Juros dia
-			aDados[32] := xValJurDIa				//Valor diário da Multa
-		endif
-
-		aDados[33]   := QRY->E1_DESCFIN/100			//Valor do Desconto
-		aDados[34]   := QRY->E1_DECRESC				//Valor do Desconto COM ncc
-		aDados[35]   := 0   						// VALOR DO NCC
-
-		//VERIFICANDO DIFERENÇA ENTRE SALDO E VALOR, SE TIVER, HOUVE UMA COMPENSAÇÃO
-		if (QRY->E1_SALDO <> QRY->E1_VALOR)
-
-			cQuerySC5 := " SELECT E5_DOCUMEN, E5_VALOR, E5_RECPAG, E5_TIPODOC  FROM " + RetSqlName("SE1") + "  "
-			cQuerySC5 += " INNER JOIN " + RetSqlName("SE5") + "  ON  "
-			cQuerySC5 += " E5_PREFIXO = E1_PREFIXO AND E5_NUMERO=E1_NUM AND E5_PARCELA = E1_PARCELA  "
-			cQuerySC5 += " WHERE "
-			cQuerySC5 += " E1_PREFIXO='" + QRY->E1_PREFIXO + " ' AND E1_NUM='" + QRY->E1_NUM + " ' AND E1_PARCELA='" + QRY->E1_PARCELA + " ' AND " + RetSqlName("SE5") + ".D_E_L_E_T_='' AND " + RetSqlName("SE1") + ".D_E_L_E_T_='' "
-
-			If Select('SE5QRY') <> 0
-				SE5QRY->(DbCloseArea())
-			endif
-
-			TCQUERY cQuerySC5  NEW ALIAS 'SE5QRY'
-
-			if SE5QRY->(EOF())
-
-				Alert("05 - ATENÇÃO: Há uma diferença de valor e saldo do título, favor verificar com o financeiro: Número:" + QRY->E1_NUM)
-				return .F.
-
-			else
-
-				aDados[35] := 0
-				aDados[36] := ""
-
-				While SE5QRY->(!Eof())
-
-					if SE5QRY->E5_RECPAG='R'
-
-						aDados[35]   += SE5QRY->E5_VALOR// VALOR DO NCC
-						aDados[36]   += " - " + SUBSTR(SE5QRY->E5_DOCUMEN,4,9)     // AS LISTAS DAS NOTAS FISCAIS
-
-					else
-						aDados[35]   -= SE5QRY->E5_VALOR// VALOR DO ESTORNO
-					endif
-
-					SE5QRY->(DbSkip())
-
-				End Do
-			endif
-			SE5QRY->(DbCloseArea())
-		endif
 
 
 		//Atualiza campos
@@ -608,15 +741,20 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie )
 		SEE->(DbCloseArea())
 
 		//Chamando o método de impressão passando o array de Dados
-		u_printBolet(aDados, aBancos, nPOS, oPrn,cbanco)
+		if cPrint
+			u_printBolet(aDados, aBancos, nPOS, oPrn,cbanco)
+		end if
 
 		QRY->(DbSkip())
 		oPrn:EndPage()
 	End
 
-	oPrn:Preview()
+	if cPrint
+		oPrn:Preview()
+	end if
+
 	cMarc := ""
-	//oMark:MarkRec(.F.)
+//oMark:MarkRec(.F.)
 	cMarc:=''
 	U_NOPRINT()
 
@@ -827,7 +965,7 @@ description
 //Verifica se o banco selecionado tem o boleto desenvolvido e retorna a posicao do banco no array de bancos
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @param cBanco, character, param_description
 @return variant, return_description
@@ -844,7 +982,7 @@ description
 //Alimenta o vetor de bancos que já foram implementados 
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -867,7 +1005,7 @@ description
 //Atualiza os campos após a geração do boleto
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @param cChave, character, param_description
 @param aBancos, array, param_description
@@ -943,7 +1081,7 @@ description
 //Cria  borderô 
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @param cBanco, character, param_description
 @param cAgencia, character, param_description
@@ -1036,7 +1174,7 @@ description
 //Função para cancelamento dos títulos selecionados
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -1236,7 +1374,7 @@ description
 
 @type function
 @version  
-@author iglal
+@author Igor Guimarães
 @since 8/16/2024
 @return variant, return_description
 /*/
@@ -1244,7 +1382,7 @@ User Function VerNCC()
 
 	local cMensagem := ""
 	Local cQuery 	:= ""
-
+	Local cDataInicio := '20240918'
 	cQuery := " SELECT SE1NCC.E1_CLIENTE, SA1.A1_NOME, E1_NUM,                  " + CRLF
 	cQuery += " 	 	CASE                                                    " + CRLF
 	cQuery += " 	 	 	WHEN E1_XXTPDEV = '1' THEN 'Negociação Especial'    " + CRLF
@@ -1310,3 +1448,99 @@ User Function VerNCC()
 	QRY->(DbCloseArea())
 
 Return(.T.)
+
+/*/{Protheus.doc} GetBancos
+description
+@type function
+@version  
+@author Igor Guimarães
+@since 10/31/2025
+@return variant, return_description
+/*/
+Static function GetBancos()
+
+	Local cTMPSEE := GetNextAlias()
+	Local nIndex := 0
+
+	BeginSql Alias cTMPSEE
+
+		SELECT EE_CODIGO, 
+					 EE_CODEMP, 
+					 EE_CONTA, 
+					 EE_DVCTA, 
+					 EE_AGENCIA, 
+					 EE_DVAGE, 
+					 EE_XXCARTE, 
+					 EE_XXMENS1, 
+					 EE_XXTXJUR, 
+					 EE_XXTXJDI, 
+					 EE_FAXATU, 
+					 EE_FAXFIM, 
+					 EE_DIASREC,
+					 EE_NUMCTR, 
+					 EE_CODCART, 
+					 EE_TIPCART,
+					 EE_DIASPRT,
+					 EE_TABELA
+					 FROM %table:SEE% SEE
+					 WHERE SEE.D_E_L_E_T_ <> '*'
+					 AND SEE.EE_SUBCTA = '001'
+	EndSql
+
+	While (cTMPSEE)->(!Eof())
+		nIndex++
+		if nIndex == 1
+			cCodBco := Alltrim((cTMPSEE)->EE_CODIGO)
+			cCodAge := Alltrim((cTMPSEE)->EE_AGENCIA)
+			cCodCta := Alltrim((cTMPSEE)->EE_CONTA)
+
+		endif
+
+		AADD(aBcosApt, { (cTMPSEE)->EE_CODIGO, (cTMPSEE)->EE_AGENCIA, (cTMPSEE)->EE_DVAGE, (cTMPSEE)->EE_CONTA, (cTMPSEE)->EE_DVCTA, (cTMPSEE)->EE_XXCARTE, (cTMPSEE)->EE_FAXATU, (cTMPSEE)->EE_FAXFIM, (cTMPSEE)->EE_XXMENS1, (cTMPSEE)->EE_XXTXJUR, (cTMPSEE)->EE_XXTXJDI, (cTMPSEE)->EE_DIASREC, (cTMPSEE)->EE_NUMCTR, (cTMPSEE)->EE_CODCART, (cTMPSEE)->EE_TIPCART, (cTMPSEE)->EE_DIASPRT, (cTMPSEE)->EE_TABELA } )
+
+		aadd(aRelBco, Alltrim((cTMPSEE)->EE_CODIGO) +" - "+ Alltrim((cTMPSEE)->EE_AGENCIA) + Alltrim((cTMPSEE)->EE_DVAGE) + " - "+ Alltrim((cTMPSEE)->EE_CONTA) +  Alltrim((cTMPSEE)->EE_DVCTA) )
+		(cTMPSEE)->(DbSkip())
+
+	EndDo
+	(cTMPSEE)->(DbCloseArea())
+Return
+/*/{Protheus.doc} setBanco
+description
+@type function
+@version  
+@author Igor Guimarães
+@since 10/31/2025
+@return variant, return_description		
+/*/
+static function setBanco()
+
+	Local cCodBkp := cCodBco
+	cCodBco := left(cCodBkp,3)
+	cCodAge := Substr(cCodBkp,7,4)
+	cCodCta := Substr(cCodBkp,15,Len(cCodBkp)-15)
+
+	cBanco   := cCodBco
+	cAgencia := Padr(cCodAge, TamSX3("EE_AGENCIA")[1])
+	cConta   := Padr(cCodCta, TamSX3("EE_CONTA"	 )[1])
+
+	oCodBco:Refresh()
+	oCodAge:Refresh()
+	oCodCta:Refresh()
+
+return
+/*/{Protheus.doc} IntegBB
+description
+@type function
+@version  
+@author Igor Guimarães
+@since 11/2/2025
+@return variant, return_description
+/*/
+static function IntegBB()
+
+	//(codigoAgencia as Character, codigoConta as Character, codigoConvenio as Character, numeroVariacaoCarteira as Character, codigoModalidade as Character, numeroCarteira as Character)
+	Local cIdCliente := "eyJpZCI6ImY3YjgwMjUtOWViYi00YmUxLTk0IiwiY29kaWdvUHVibGljYWRvciI6MCwiY29kaWdvU29mdHdhcmUiOjc1MjE3LCJzZXF1ZW5jaWFsSW5zdGFsYWNhbyI6Mn0"
+	Local cKeyClient := "eyJpZCI6IjQ0YTZmNGItMTcwYS00MGE5LTgxNmEtODIiLCJjb2RpZ29QdWJsaWNhZG9yIjowLCJjb2RpZ29Tb2Z0d2FyZSI6NzUyMTcsInNlcXVlbmNpYWxJbnN0YWxhY2FvIjoyLCJzZXF1ZW5jaWFsQ3JlZGVuY2lhbCI6MSwiYW1iaWVudGUiOiJwcm9kdWNhbyIsImlhdCI6MTcxODk5MzI0ODYxOH0"
+	oBancoBB := bancodobrasil():new( cCodBco, cCodAge, cCodCta, "1562682","19","4","17", cIdCliente, cKeyClient )
+
+Return oBancoBB
