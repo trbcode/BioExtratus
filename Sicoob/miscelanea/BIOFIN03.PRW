@@ -78,6 +78,7 @@ User Function BIOFIN03(cTpBol)
 
 		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
 		cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+		cFilBB   := "E1_XXGRBOL <>'2' .AND. E1_PORTADO == '001' .AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
 	endif
 
 	if empty(aRelBco)
@@ -198,12 +199,13 @@ Static Function MenuDef()
 	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
-/*	ADD OPTION aRotina TITLE 'Baixas Sicoob'	ACTION 'U_BEFINM01()'   OPERATION 1 ACCESS 0// */
+	ADD OPTION aRotina TITLE 'Imprime Boleto BB'	ACTION 'U_ImpBolBB()'   OPERATION 1 ACCESS 0// */
 
 	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
 
 	ADD OPTION aSubMnu TITLE 'Todos'        	ACTION 'U_BOLTODOS()'   OPERATION 3 ACCESS 0
 	ADD OPTION aSubMnu TITLE 'Não enviados ao Banco'	ACTION 'U_NOPRINT()'     OPERATION 3 ACCESS 0
+	ADD OPTION aSubMnu TITLE 'Banco do Brasil'	ACTION 'U_FILTBB()'   OPERATION 1 ACCESS 0
 Return aRotina
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 /*/{Protheus.doc} markBol
@@ -299,7 +301,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	private oBancoBB as Object
 
 	if cCodBco == "001"
-		IntegBB()
+		U_IntegBB(@oBancoBB,cCodBco, cCodAge, cCodCta)
 	endif
 
 	IF SE1->E1_XXBOIMP <> 'S' .AND. SM0->M0_CODIGO == '01'
@@ -526,8 +528,6 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 						aDados[35]   += SE5QRY->E5_VALOR// VALOR DO NCC
 						aDados[36] += " " + AllTrim(Str(Val(SUBSTR(SE5QRY->E5_DOCUMEN, 4, 9))))    // AS LISTAS DAS NOTAS FISCAIS
 
-
-
 					else
 						aDados[35]   -= SE5QRY->E5_VALOR// VALOR DO ESTORNO
 					endif
@@ -538,8 +538,6 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 			endif
 			SE5QRY->(DbCloseArea())
 		endif
-
-
 
 		//Tratando as mensagens
 
@@ -590,7 +588,6 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 			aDados[43] := ""
 		endif
 
-
 		//Integração para registrar a cobrança no Sicoob.
 		IF cBanco== "756" .and. Empty(QRY->E1_XQRCODE)//sicoob
 			//(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolText,aDados,dDtaBx,cDatIni,cDatFim, cCodClie, cNossoNum)
@@ -601,6 +598,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 				return // igor - provisório até definir regra
 			Endif
 		ElseIf cBanco == "001" .and. Empty(QRY->E1_CODBAR) //bb
+
 			oBancoBB:registraboletos(QRY->E1_PREFIXO, QRY->E1_NUM, QRY->E1_PARCELA, QRY->E1_TIPO)
 			cResult := oBancoBB:cResult
 			FWJsonDeserialize(cResult,@oResultado)
@@ -608,6 +606,15 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 				FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + oResultado:MESSAGE, "Integração Banco do Brasil")
 			EndIf
 			FWAlertSuccess("Processamento finalizado", "Integração Banco do Brasil")
+			if cPrint
+				oBancoBB:imprimeboletos(QRY->E1_PREFIXO, QRY->E1_NUM, QRY->E1_PARCELA, QRY->E1_TIPO, oPrn)
+				oPrn:Preview()
+				cMarc:=''
+				oCodBco:Refresh()
+				oCodAge:Refresh()
+				oCodCta:Refresh()
+			endif
+			U_NOPRINT()
 			return
 		Else
 			aDados[2] := Alltrim(QRY->E1_CODBAR)
@@ -1528,6 +1535,89 @@ static function setBanco()
 	oCodCta:Refresh()
 
 return
+
+
+/*/{Protheus.doc} ImpBolBB
+Imprime Boleto Banco do Brasil
+@type function
+@version 1.1
+@author Igor Guimarães
+@since 11/4/2025
+@return variant, return_description
+/*/
+
+User Function ImpBolBB()
+	Local aArea      := GetArea()
+	Local oBancoBB as object
+	Local cFilePrint := ""
+	Local cTMPSE1    := GetNextAlias()
+	Local _cCodfil   := xFilial("SE1")
+	Local _cFiltro   := ""
+	Local cArqBs64   := ""
+	Local lEspera	   := .T.
+	Local cPath 	   := GetTempPath() + "totvsprinter\"
+	Local nI         := 0
+
+	cMarc := substr(cMarc,1,Len(cMarc)-1) //Retira a virgula final
+
+	_cFiltro := " SE1.R_E_C_N_O_ IN ( " + cMarc + " )"
+	_cFiltro := "% " + _cFiltro + " %"
+	BeginSql Alias cTMPSE1
+		SELECT SE1.E1_PARCELA, 
+			   SE1.E1_PREFIXO, 
+			   SE1.E1_NUM, 
+			   SE1.E1_TIPO, 
+			   SE1.E1_CLIENTE, 
+			   SE1.E1_LOJA, 
+			   SE1.E1_NOSNUM
+		from %table:SE1% SE1
+		where SE1.E1_FILIAL = %Exp:_cCodfil%
+		AND ( %Exp:_cFiltro% )
+		ORDER BY E1_NUM, E1_PARCELA
+	EndSql
+
+	U_IntegBB(@oBancoBB,cCodBco, cCodAge, cCodCta)
+
+	WHILE (cTMPSE1)->(!Eof())
+		cFilePrint := "BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)
+
+		oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
+		oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn)
+		oPrn:SetViewPDF(.F.)
+		oPrn:Print()
+		lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+
+		while lEspera
+			sleep(500)
+			nI++
+			lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+			if nI > 60
+				lEspera := .F.
+			endif
+		enddo
+
+		if nI <= 60
+			cArqBs64 := U_FileTo64(cPath + cFilePrint + ".pdf")
+			SE1->(DbSetorder(1))
+			SE1->(DbSeek( xFilial("SE1") + (cTMPSE1)->E1_PREFIXO + (cTMPSE1)->E1_NUM + (cTMPSE1)->E1_PARCELA + (cTMPSE1)->E1_TIPO ))
+			RecLock("SE1",.F.)
+			Replace SE1->E1_XXBOIMP  with "S"
+			SE1->(DbUnlock())
+		endif
+
+		FwFreeObj(oPrn)
+
+		(cTMPSE1)->(DbSkip())
+	EndDo
+	(cTMPSE1)->(DbCloseArea())
+	oCodBco:Refresh()
+	oCodAge:Refresh()
+	oCodCta:Refresh()
+	oMark:Refresh()
+	RestArea(aArea)
+Return Nil
+
+
 /*/{Protheus.doc} IntegBB
 description
 @type function
@@ -1536,11 +1626,21 @@ description
 @since 11/2/2025
 @return variant, return_description
 /*/
-static function IntegBB()
+user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 
 	//(codigoAgencia as Character, codigoConta as Character, codigoConvenio as Character, numeroVariacaoCarteira as Character, codigoModalidade as Character, numeroCarteira as Character)
+	Local aArea := GetArea()
 	Local cIdCliente := "eyJpZCI6ImY3YjgwMjUtOWViYi00YmUxLTk0IiwiY29kaWdvUHVibGljYWRvciI6MCwiY29kaWdvU29mdHdhcmUiOjc1MjE3LCJzZXF1ZW5jaWFsSW5zdGFsYWNhbyI6Mn0"
 	Local cKeyClient := "eyJpZCI6IjQ0YTZmNGItMTcwYS00MGE5LTgxNmEtODIiLCJjb2RpZ29QdWJsaWNhZG9yIjowLCJjb2RpZ29Tb2Z0d2FyZSI6NzUyMTcsInNlcXVlbmNpYWxJbnN0YWxhY2FvIjoyLCJzZXF1ZW5jaWFsQ3JlZGVuY2lhbCI6MSwiYW1iaWVudGUiOiJwcm9kdWNhbyIsImlhdCI6MTcxODk5MzI0ODYxOH0"
 	oBancoBB := bancodobrasil():new( cCodBco, cCodAge, cCodCta, "1562682","19","4","17", cIdCliente, cKeyClient )
+	RestArea(aArea)
+Return
 
-Return oBancoBB
+User Function FILTBB()
+	cMarc := ""
+	oMark:CleanFilter()
+	oMark:SetFilterDefault(cFilBB)
+	oMark:Refresh()
+
+
+Return Nil

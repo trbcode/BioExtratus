@@ -1,7 +1,6 @@
 // Função para gerar o "Nosso Número" e calcular o dígito verificador
 STATIC FUNCTION GerarNossoNumeroSicoob(nCooperativa, nSequencial)
 	LOCAL cNossoNumero := ""
-	LOCAL cBaseNumero := ""
 	LOCAL nDV := 0
 
 	// Formata o número da cooperativa com 4 dígitos

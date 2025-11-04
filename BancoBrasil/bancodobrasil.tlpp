@@ -4,7 +4,7 @@
 /*/{Protheus.doc} bancodobrasil
 Classe responsável pelas integrações com Banco do Brasil via API REST
 @type class
-@version  
+@version  1.0
 @author Igor Guimarães
 @since 10/28/2025
 /*/
@@ -37,13 +37,14 @@ class bancodobrasil
 	public method alteraboletos()
 	public method excluiboletos()
 	public method recebeboletos()
+	public method imprimeboletos()
 	public method geratoken()
 
 endclass
 /*/{Protheus.doc} bancodobrasil::new
 Cria objeto integração Banco do Brasil
 @type method
-@version  
+@version  1.0
 @author Igor Guimaraes
 @since 11/2/2025
 @param codigoBanco, character, codigo do banco
@@ -87,7 +88,7 @@ Return self
 /*/{Protheus.doc} bancodobrasil::registraboletos
 Registra título no Banco do Brasil
 @type method
-@version  
+@version 1.0  
 @author igor guimaraes
 @since 11/2/2025
 @param prefixo, character, prefixo do título
@@ -188,7 +189,7 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 	if oRestBB:Post( ::aHeader )
 		If FWJsonDeserialize(oRestBB:GetResult(),@oObj)
 			oResponse:FromJson(oRestBB:GetResult())
-			::cResult            := oRestBB:GetResult()
+			//::cResult            := oRestBB:GetResult()
 			::codigoBarra        := oResponse['codigoBarraNumerico']
 			::linhaDigitavel     := oResponse['linhaDigitavel']
 			::qrCodeUrl          := oResponse["qrCode"]['url']
@@ -208,7 +209,7 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 				Replace SE1->E1_AGEDEP 	 with ::codigoAgencia               //agencia sem DV
 				Replace SE1->E1_CONTA  	 with ::codigoConta                 //conta sem DV
 				Replace SE1->E1_SITUACA	 with "1"                           //Situação do Título - 0=Carteira;1=Cob.Simples;2=Descontada;3=Caucionada;4=Vinculada;5=Advogado;6=Judicial
-				Replace SE1->E1_XXBOIMP  with "S"                             //Coloca como ja impresso
+				//Replace SE1->E1_XXBOIMP  with "S"                             //Coloca como ja impresso
 				Replace SE1->E1_OK       with ""                              //Para retirar a seleção do campo assim que é impresso
 				Replace SE1->E1_XQRCODE  with ::qrCodeEmv                     //QRCode
 				Replace SE1->E1_CODBAR   with ::codigoBarra                   //Código de Barra
@@ -223,6 +224,364 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 		oResponse['message'] := DECODEUTF8(oObj:ERROS[1]['MENSAGEM'])
 		::cResult += oResponse:tojson()
 	endif
+Return
+
+/*/{Protheus.doc} bancodobrasil::alteraboletos
+Altera informações do título junto ao Banco do Brasil
+@type method
+@version 1.1
+@author Igor Guimarães
+@since 11/4/2025
+@param prefixo, character, param_description
+@param titulo, character, param_description
+@param parcela, character, param_description
+@param tipo, character, param_description
+@return variant, return_description
+/*/
+method alteraboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, novoVencimento as Date, novoValorNominal as Numeric) class bancodobrasil
+
+	Local aArea       := GetArea()
+	Local oJsonBB			as Object
+	//Local oRestBB	    as Object
+	Local oDtaVcto    as Object
+	Local oInclAbat	  as Object
+	Local cPath                 := "/boletos/"
+	Local lDataVencimento	      := .F.
+	Local cResult							  := ""
+	Local lInclueAbatatimento	  := .F.
+	Local cBody								  := ""
+	Local cHeaderRet          := ""
+	//Local lAlteraAbatimento	    := .F.
+	//Local lValorNominal         := .F.
+	//Local nValorAbatimento      := 0.00
+
+	if valtype(novoVencimento) == "D"
+		lDataVencimento := .T.
+	endif
+
+	DbSelectArea("SE1")
+	SE1->(DbSetorder(1))
+	SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
+
+	nVlrAbat := U_xSomaAbat( prefixo, titulo, parcela, "R", SE1->E1_MOEDA, , SE1->E1_CLIENTE, SE1->E1_LOJA )
+	cPath += alltrim(SE1->E1_NUMBCO) + "?" + ::appKey
+	oJsonBB := JsonObject():New()
+	oJsonBB["numeroConvenio"] := Val(::codigoConvenio)
+	if lDataVencimento
+		oDtaVcto := JsonObject():New()
+		oJsonBB['indicadorNovaDataVencimento'] := "S"
+		oDtaVcto["novaDataVencimento"] := StrTran(DtoC(novoVencimento),"/",".")
+		oJsonBB['alteracaoData'] := oDtaVcto
+	endif
+	if lInclueAbatatimento
+		oInclAbat := JsonObject():New()
+		oJsonBB['indicadorIncluirAbatimento'] := "S"
+		oInclAbat['valorAbatimento'] := nVlrAbat
+		oJsonBB['abatimento'] := oInclAbat
+	endif
+	cBody := EncodeUTF8(oJsonBB:ToJson())
+	cResult := HTTPQuote(::cURL + cPath, "PATCH", "", cBody, 120, aClone(::aHeader), @cHeaderRet)
+
+	RestArea(aArea)
+Return Nil
+
+/*/{Protheus.doc} bancodobrasil::imprimeboletos
+Imprime o boleto registrado no Banco do Brasil
+@type method
+@version 1.0
+@author Igor Guimaraes
+@since 11/2/2025
+@param prefixo, character, prefixo do título
+@param numero, character, número do título
+@param parcela, character, parcela do título
+@param tipo, character, tipo do título
+@param oBoleto, object, objeto boleto
+@return variant, return_description
+/*/
+method imprimeboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, oBoleto as Object) class bancodobrasil
+
+	Local aArea       := GetArea()
+	Local nI          := 0
+	Local nY          := 0
+	Local nCol        := 0
+	Local nLin        := 0
+	Local cString     := ""
+	Local lAdjuLeg    := oBoleto:LADJUSTTOLEGACY
+	Local cCodConv    := ""
+	Local cBcoCNAB    := ""
+	Local cAgeCNAB    := ""
+	Local cCtaCNAB    := ""
+	//Local oResponse	  := JsonObject():New()
+	Local nVlrAbat    := 0.00
+	Private oFont8    as Object
+	Private oFont11n  as Object
+	Private oFont11   as Object
+	Private oFont10   as Object
+	Private oFont10n  as Object
+	Private oFont14   as Object
+	Private oFont14n  as Object
+	Private oFont15   as Object
+	Private oFont15n  as Object
+	Private oFont16   as Object
+	Private oFont16n  as Object
+	Private oFont17   as Object
+	Private oFont18   as Object
+	Private oFont19   as Object
+	Private oFont20   as Object
+	Private oFont21   as Object
+	Private oFont24   as Object
+	Private oFont12   as Object
+	Private oFont12n  as Object
+	Private oFont13   as Object
+	Private oFont13n  as Object
+	Private nJurosD	:= 0
+	Private aDadosTit   := {}
+	Private aDadosEmp   := {}
+	Private aBolText    := {}
+	Private aDatSacado  := {}
+	Private aDadosBol   := {}
+	Private aDadosBanco := {}
+
+	oFont8   := TFontEx():New(oBoleto,"Arial",8,8,.F.,.T.,.F.)
+	oFont10  := TFontEx():New(oBoleto,"Arial",10,10,.F.,.T.,.F.)
+	oFont10n := TFontEx():New(oBoleto,"Arial",10,10,.T.,.T.,.F.)
+	oFont11  := TFontEx():New(oBoleto,"Arial",11,11,.F.,.T.,.F.)
+	oFont11n := TFontEx():New(oBoleto,"Arial",11,11,.T.,.T.,.F.)
+	oFont12  := TFontEx():New(oBoleto,"Times New Roman",12,12,.F.,.T.,.F.)
+	oFont12n := TFontEx():New(oBoleto,"Times New Roman",12,12,.T.,.T.,.F.)
+	oFont13  := TFontEx():New(oBoleto,"Times New Roman",13,13,.F.,.T.,.F.)
+	oFont13n := TFontEx():New(oBoleto,"Times New Roman",13,13,.T.,.T.,.F.)
+	oFont14  := TFontEx():New(oBoleto,"Arial",14,14,.F.,.T.,.F.)
+	oFont14n := TFontEx():New(oBoleto,"Arial",14,14,.T.,.T.,.F.)
+	oFont15  := TFontEx():New(oBoleto,"Arial",15,15,.F.,.T.,.F.)
+	oFont15n := TFontEx():New(oBoleto,"Arial",15,15,.T.,.T.,.F.)
+	oFont16  := TFontEx():New(oBoleto,"Arial",16,16,.F.,.T.,.F.)
+	oFont16n := TFontEx():New(oBoleto,"Arial",16,16,.T.,.T.,.F.)
+	oFont17  := TFontEx():New(oBoleto,"Arial",17,17,.F.,.T.,.F.)
+	oFont18  := TFontEx():New(oBoleto,"Arial",18,18,.F.,.T.,.F.)
+	oFont19  := TFontEx():New(oBoleto,"Arial",19,19,.F.,.T.,.F.)
+	oFont20  := TFontEx():New(oBoleto,"Arial",20,20,.F.,.T.,.F.)
+	oFont21  := TFontEx():New(oBoleto,"Arial",21,21,.F.,.T.,.F.)
+	oFont24  := TFontEx():New(oBoleto,"Arial",24,24,.F.,.T.,.F.)
+
+	DbSelectArea("SE1")
+	SE1->(DbSetorder(1))
+	SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
+	nVlrAbat := U_xSomaAbat( prefixo, titulo, parcela, "R", SE1->E1_MOEDA, , SE1->E1_CLIENTE, SE1->E1_LOJA )
+	cCodConv  := ::codigoConvenio
+	cBcoCNAB  := SE1->E1_PORTADO
+	cAgeCNAB  := SE1->E1_AGEDEP
+	cCtaCNAB  := SE1->E1_CONTA
+	nJurosD   := SE1->E1_PORCJUR
+	cPrefix   := PadR(prefixo,TamSX3("E1_PREFIXO")[1])
+	cNumero   := PadR(titulo,TamSX3("E1_NUM")[1])
+	cChaveSA6 := PadR(cBcoCNAB,TamSX3("A6_COD")[1])+PadR(cAgeCNAB,TamSX3("A6_AGENCIA")[1])+PadR(cCtaCNAB,TamSX3("A6_NUMCON")[1])
+	aBolText    := { "", "", "" }
+	DbSelectArea("SA1")
+	dbSetOrder(1)
+	dbSeek(xFilial("SA1") + SE1->E1_CLIENTE + SE1->E1_LOJA)
+
+	If Empty(SA1->A1_ENDCOB)
+		aDatSacado   := {AllTrim(SA1->A1_NOME)           ,;     // [1]Razão Social
+		AllTrim(SA1->A1_COD )+"-"+SA1->A1_LOJA           ,;     // [2]Código
+		AllTrim(SA1->A1_END )+"-"+AllTrim(SA1->A1_BAIRRO),;     // [3]Endereço
+		AllTrim(SA1->A1_MUN )                            ,;			// [4]Cidade
+		SA1->A1_EST                                      ,;    	// [5]Estado
+		SA1->A1_CEP                                      ,;     // [6]CEP
+		SA1->A1_CGC									                     ,;			// [7]CGC
+		SA1->A1_PESSOA									 } 			                // [8]PESSOA
+	Else
+		aDatSacado   := {AllTrim(SA1->A1_NOME)              ,;   	// [1]Razão Social
+		AllTrim(SA1->A1_COD )+"-"+SA1->A1_LOJA              ,;   	// [2]Código
+		AllTrim(SA1->A1_ENDCOB)+"-"+AllTrim(SA1->A1_BAIRROC),;   	// [3]Endereço
+		AllTrim(SA1->A1_MUNC)	                              ,;   	// [4]Cidade
+		SA1->A1_ESTC	                                      ,;   	// [5]Estado
+		SA1->A1_CEPC                                        ,;   	// [6]CEP
+		SA1->A1_CGC										    ,;		// [7]CGC
+		SA1->A1_PESSOA									    }		// [8]PESSOA
+	Endif
+
+	DbSelectArea("SA6")
+	DbSetOrder(1)
+	dbSeek(xFilial("SA6")+cChaveSA6,.T.)
+	aDadosBanco  := {SA6->A6_COD,; 													   			// [1]Numero do Banco
+	SA6->A6_NREDUZ,;  											       	// [2]Nome do Banco
+	SUBSTR(SA6->A6_AGENCIA, 1, 4)+"-"+SUBSTR(SA6->A6_AGENCIA, 5, 5),; 	// [3]Agência
+	alltrim(SA6->A6_NUMCON),; 	       									// [4]Conta Corrente
+	SA6->A6_DVCTA  ,;    	   												// [5]Dígito da conta corrente
+	"17"}
+
+	aDadosEmp := {	SM0->M0_NOMECOM                                               ,; //[1]Nome da Empresa
+	SM0->M0_ENDCOB                                                            ,; //[2]Endereço
+	AllTrim(SM0->M0_BAIRCOB)+", "+AllTrim(SM0->M0_CIDCOB)+", "+SM0->M0_ESTCOB ,; //[3]Complemento
+	"CEP: "+Subs(SM0->M0_CEPCOB,1,5)+"-"+Subs(SM0->M0_CEPCOB,6,3)             ,; //[4]CEP
+	"PABX/FAX: "+SM0->M0_TEL                                                  ,; //[5]Telefones
+	"CNPJ: "+Subs(SM0->M0_CGC,1,2)+"."+Subs(SM0->M0_CGC,3,3)+"."+              ; //[6]
+	Subs(SM0->M0_CGC,6,3)+"/"+Subs(SM0->M0_CGC,9,4)+"-"+                       ; //[6]
+	Subs(SM0->M0_CGC,13,2)                                                    ,; //[6]CGC
+	"I.E.: "+Subs(SM0->M0_INSC,1,3)+"."+Subs(SM0->M0_INSC,4,3)+"."+            ; //[7]
+	Subs(SM0->M0_INSC,7,3)+"."+Subs(SM0->M0_INSC,10,3)                        }  //[7]I.E
+
+	aDadosTit	:= {AllTrim(SE1->E1_NUM)+AllTrim(SE1->E1_PARCELA)		,;  // [1] Número do título
+	SE1->E1_EMISSAO                              	,;  // [2] Data da emissão do título
+	dDataBase                    					,;  // [3] Data da emissão do boleto
+	SE1->E1_VENCTO                               	,;  // [4] Data do vencimento
+	(SE1->E1_SALDO-nVlrAbat+ SE1->E1_ACRESC - SE1->E1_DECRESC)                  	,;  // [5] Valor do título
+	Alltrim(SE1->E1_NUMBCO)                             	,;  // [6] Nosso número (Ver fórmula para calculo)
+	SE1->E1_PREFIXO                               	,;  // [7] Prefixo da NF
+	SE1->E1_TIPO	                           		}   // [8] Tipo do Titulo
+	::codigoBarra := Alltrim(SE1->E1_CODBAR)
+	::linhaDigitavel := Alltrim(SE1->E1_CODDIG)
+	oBoleto:StartPage()
+
+	For nY := 1 to 2
+
+		oBoleto:Line (nLin+0140,nCol + 100,nLin+0140,2300)
+		oBoleto:Line (nLin+0140,nCol + 500,nLin+0080, 500)
+		oBoleto:Line (nLin+0140,nCol + 710,nLin+0080, 710)
+		oBoleto:SayBitmap(nLin+70,100,"BB.BMP",0080,0070)
+
+		oBoleto:Say (nLin+0120,210,"Banco do Brasil" ,oFont11:oFont ) 	// [2]Nome do Banco
+		oBoleto:Say (nLin+0128,515,aDadosBanco[1]+"-9",oFont17:oFont )	// [1]Numero do Banco
+
+		oBoleto:Say (nLin+0128,740,::linhaDigitavel,oFont15:oFont )	// [1]Numero do Banco
+
+		oBoleto:Say (nLin+0080,1800,iif( nY == 1,"Ficha de Registro",if(nY==2,"Ficha de Compensação","")),oFont10:oFont)
+
+		oBoleto:Line (nLin+0220,100,nLin+0220,2300 )
+		oBoleto:Line (nLin+0220,nCol + 1800,nLin+0140, nCol +1800)
+
+		oBoleto:Say  (nLin+0160,100 ,"Local de Pagamento",oFont8:oFont)
+		oBoleto:Say  (nLin+0170,400 ,"PAGAVÉL EM QUALQUER AGÊNCIA BANCÁRIA ATÉ O VENCIMENTO",oFont10:oFont)
+		oBoleto:Say  (nLin+0210,400 ,"APÓS O VENCIMENTO, SOMENTE NO BANCO DO BRASIL",oFont10:oFont)
+
+		oBoleto:Say  (nLin+0160,1810,"Vencimento"                                     ,oFont8:oFont)
+		cString	:= StrZero(Day(aDadosTit[4]),2) +"/"+ StrZero(Month(aDadosTit[4]),2) +"/"+ Right(Str(Year(aDadosTit[4])),4)
+		oBoleto:Say  (nLin+0200,nCol + 1900,cString,oFont11n:oFont)
+
+		oBoleto:Line (nLin+0300,100,nLin+0300,2300 )
+		oBoleto:Line (nLin+0300,nCol + 1800,nLin+0220, nCol +1800)
+
+		oBoleto:Say  (nLin+240,100 ,"Beneficiário",oFont8:oFont)
+		oBoleto:Say  (nLin+270,130 ,aDadosEmp[1]+Space(15)+aDadosEmp[6]	,oFont10:oFont) //Nome + CNPJ
+
+		oBoleto:Say  (nLin+240,1810,"Agência/Código Beneficiário",oFont8:oFont)
+		cString	:= Alltrim(Alltrim(aDadosBanco[3])+Alltrim(SA6->A6_DVAGE)+"/"+aDadosBanco[4]+"-"+aDadosBanco[5])
+		oBoleto:Say  (nLin+270,nCol + 1900,cString,oFont11n:oFont)
+
+		oBoleto:Line (nLin+0370,100,nLin+0370,2300 )
+		oBoleto:Line (nLin+0370,nCol + 0500,nLin+0300, nCol +0500)
+		oBoleto:Line (nLin+0370,nCol + 1000,nLin+0300, nCol +1000)
+		oBoleto:Line (nLin+0370,nCol + 1300,nLin+0300, nCol +1300)
+		oBoleto:Line (nLin+0370,nCol + 1500,nLin+0300, nCol +1500)
+		oBoleto:Line (nLin+0370,nCol + 1800,nLin+0300, nCol +1800)
+
+		oBoleto:Say  (nLin+0320,100 ,"Data do Documento"                              ,oFont8:oFont)
+		oBoleto:Say  (nLin+0350,130, StrZero(Day(aDadosTit[2]),2) +"/"+ StrZero(Month(aDadosTit[2]),2) +"/"+ Right(Str(Year(aDadosTit[2])),4),oFont10:oFont)
+
+		oBoleto:Say  (nLin+0320,510 ,"Nro.Documento"                              ,oFont8:oFont)
+		oBoleto:Say  (nLin+0350,530, aDadosTit[7]+aDadosTit[1]					,oFont10:oFont) //Prefixo +Numero+Parcela
+
+		oBoleto:Say  (nLin+0320,1010,"Espécie Doc."                               ,oFont8:oFont)
+		oBoleto:Say  (nLin+0350,1030,"DM"										    ,oFont10:oFont) //Tipo do Titulo
+
+		oBoleto:Say  (nLin+0320,1310,"Aceite"                                         ,oFont8:oFont)
+		oBoleto:Say  (nLin+0350,1330,"N"                                             ,oFont10:oFont)
+
+		oBoleto:Say  (nLin+0320,1510,"Data do Processamento"                          ,oFont8:oFont)
+		oBoleto:Say  (nLin+0350,1530,StrZero(Day(aDadosTit[3]),2) +"/"+ StrZero(Month(aDadosTit[3]),2) +"/"+ Right(Str(Year(aDadosTit[3])),4),oFont10:oFont) // Data impressao
+
+		oBoleto:Say  (nLin+0320,1810,"Nosso Número"                                   ,oFont8:oFont)
+		cString := Alltrim(SE1->E1_NUMBCO)
+
+		oBoleto:Say  (nLin+0350,1900,cString,oFont11n:oFont)
+
+		oBoleto:Line (nLin+0440,100,nLin+0440,2300 )
+		oBoleto:Line (nLin+0440,nCol + 0500,nLin+0370, nCol +0500)
+		oBoleto:Line (nLin+0440,nCol + 0750,nLin+0370, nCol +0750)
+		oBoleto:Line (nLin+0440,nCol + 1000,nLin+0370, nCol +1000)
+		oBoleto:Line (nLin+0440,nCol + 1500,nLin+0370, nCol +1500)
+		oBoleto:Line (nLin+0440,nCol + 1800,nLin+0370, nCol +1800)
+
+		oBoleto:Say  (nLin+390,100 ,"Uso do Banco"                                   ,oFont8:oFont)
+
+		oBoleto:Say  (nLin+390,510 ,"Carteira"                                       ,oFont8:oFont)
+		oBoleto:Say  (nLin+420,530 ,aDadosBanco[6]                                  	,oFont10:oFont)
+
+		oBoleto:Say  (nLin+390,760 ,"Espécie"                                        ,oFont8:oFont)
+		oBoleto:Say  (nLin+420,780 ,"R$"                                             ,oFont10:oFont)
+
+		oBoleto:Say  (nLin+390,1010,"Quantidade"                                     ,oFont8:oFont)
+
+		oBoleto:Say  (nLin+390,1510,"Valor"                                          ,oFont8:oFont)
+
+		oBoleto:Say  (nLin+390,1810,"Valor do Documento"                          	,oFont8:oFont)
+		cString := Alltrim(Transform(aDadosTit[5],"@E 99,999,999.99"))
+		oBoleto:Say  (nLin+420,1900,cString ,oFont11n:oFont)
+
+		oBoleto:Line (nLin+0510,1800,nLin+0510,2300 )
+		oBoleto:Line (nLin+0510,nCol + 1800,nLin+0440, nCol +1800)
+		oBoleto:Say  (nLin+0460,1810,"(-)Desconto/Abatimento"                         ,oFont8:oFont)
+		oBoleto:Say  (nLin+0460,100 ,"Instruções (Todas informações deste bloqueto são de exclusiva responsabilidade do Beneficiário)",oFont8:oFont)
+
+		oBoleto:Say  (nLin+550,130 ,IIF(!Empty(Alltrim(aBolText[1])),aBolText[1],"ENVIAR PARA CARTÓRIO 05 DIAS ÚTEIS APÓS O VENCIMENTO"),oFont10:oFont) //Incluido por Felipe Andrews
+		oBoleto:Say  (nLin+600,130 ,IIF(!Empty(Alltrim(aBolText[2])),aBolText[2],"COBRAR MORA DE R$ " + Alltrim(Transform((aDadosTit[5]*nJurosD/100),"@E 99,999,999.99")) + " AO DIA"),oFont10:oFont) //Incluido por Felipe Andrews
+		oBoleto:Say  (nLin+650,130 ,aBolText[3],oFont10:oFont)
+		oBoleto:Say  (nLin+700,130 ,"Endereço do Beneficiário: " + aDadosEmp[2],oFont10:oFont)
+		oBoleto:Say  (nLin+750,130 ,aDadosEmp[3] + "        " + aDadosEmp[4],oFont10:oFont)
+
+		oBoleto:Line (nLin+0580,1800,nLin+0580,2300 )
+		oBoleto:Line (nLin+0580,nCol + 1800,nLin+0510, nCol +1800)
+		oBoleto:Say  (nLin+0530,1810,"(-)Outras Deduções"                         ,oFont8:oFont)
+
+		oBoleto:Line (nLin+0650,1800,nLin+0650,2300 )
+		oBoleto:Line (nLin+0650,nCol + 1800,nLin+0580, nCol +1800)
+		oBoleto:Say  (nLin+0600,1810,"(+)Mora/Multa"                         ,oFont8:oFont)
+
+		oBoleto:Line (nLin+0720,1800,nLin+0720,2300 )
+		oBoleto:Line (nLin+0720,nCol + 1800,nLin+0650, nCol +1800)
+		oBoleto:Say  (nLin+0670,1810,"(+)Outros Acréscimos"                         ,oFont8:oFont)
+
+		oBoleto:Line (nLin+0790,100,nLin+0790,2300 )
+		oBoleto:Line (nLin+0790,nCol + 1800,nLin+0720, nCol +1800)
+		oBoleto:Say  (nLin+0740,1810,"(=)Valor Cobrado"                         ,oFont8:oFont)
+
+		oBoleto:Say  (nLin+0810,100 ,"Pagador"                                         ,oFont8:oFont)
+		oBoleto:Say  (nLin+850,130 ,aDatSacado[1]+" ("+aDatSacado[2]+")"             ,oFont10:oFont)
+		oBoleto:Say  (nLin+900,130 ,aDatSacado[3]                                    ,oFont10:oFont)
+		oBoleto:Say  (nLin+950,130 ,aDatSacado[6]+"    "+aDatSacado[4]+" - "+aDatSacado[5],oFont10:oFont) // CEP+Cidade+Estado
+
+		if aDatSacado[8] = "J"
+			oBoleto:Say  (nLin+850,1750,"CNPJ: "+TRANSFORM(aDatSacado[7],"@R 99.999.999/9999-99"),oFont10:oFont) // CGC
+		Else
+			oBoleto:Say  (nLin+850,1750,"CPF: "+TRANSFORM(aDatSacado[7],"@R 999.999.999-99"),oFont10:oFont) 	// CPF
+		EndIf
+
+		oBoleto:Say  (nLin+1000,1850,Alltrim(aDadosTit[6])  ,oFont10:oFont)
+		oBoleto:Line (nLin+1020,100,nLin+1020,2300 )
+		oBoleto:Say  (nLin+1040,100 ,"Sacador/Avalista",oFont8:oFont)
+		oBoleto:Say  (nLin+1070,130 ,aDadosEmp[1]+Space(15)+aDadosEmp[6]	,oFont10:oFont) //Nome + CNPJ
+
+		If nY == 1
+			oBoleto:Say (nLin+1040,1500,"Autenticação Mecânica",oFont8:oFont)
+			For nI := 100 to 2300 step 50
+				oBoleto:Line(1200, nI,1200, nI+30)
+			Next nI
+		Else
+			oBoleto:Say  (nLin+1040,1500,"Autenticação Mecânica",oFont8:oFont)
+			oBoleto:Say  (nLin+1050,1800,"Ficha de Compensação",oFont11n:oFont)
+			oBoleto:FWMSBAR("INT25" /*cTypeBar*/,52.3/*nRow*/ ,2.2/*nCol*/, Alltrim(SE1->E1_CODBAR)/*cCode*/,oBoleto/*oBoleto*/,.F./*lCheck*/,/*Color*/,.T./*lHorz*/,0.025/*nWidth*/,1.5/*nHeigth*/,.F./*lBanner*/,"Arial"/*cFont*/,NIL/*cMode*/,.F./*lPrint*/,2/*nPFWidth*/,2/*nPFHeigth*/,.F./*lCmtr2Pix*/)
+			oBoleto:QRCode(nLin+770,1350,Alltrim(SE1->E1_XQRCODE), 90)
+			//Cria o objeto FwQrCode
+			//oQrCode := FwQrCode():New({nLin+770,1350,200,200},oBoleto,,aCB_RN_NN[6])
+		EndIF
+		nLin += 1200
+	Next nY
+
+	oBoleto:EndPage()
+	oBoleto:LADJUSTTOLEGACY := lAdjuLeg
+
+	RestArea(aArea)
 Return
 
 /*/{Protheus.doc} bancodobrasil::geratoken
@@ -356,7 +715,6 @@ User Function xSomaAbat(cPrefixo,cNumero,cParcela,cCart,nMoeda,dData,cFornCli,cL
 
 	ENDIF
 	DbSelectArea(cAliasSoma)
-
 
 	While (cAliasSoma)->(!Eof())
 		//----------------------------------------------------------------------
