@@ -10,27 +10,32 @@ Classe responsável pelas integrações com Banco do Brasil via API REST
 /*/
 class bancodobrasil
 
-	Data cURL                   as Character
-	Data cClientID              as Character
-	Data cClientSecret          as Character
-	Data cAuthBasic             as Character
-	Data cToken                 as Character
-	Data numeroVariacaoCarteira as Character
-	Data codigoConvenio         as Character
-	Data codigoBanco            as Character
-	Data codigoAgencia          as Character
-	Data codigoConta            as Character
-	Data codigoModalidade			  as Character
-	Data numeroCarteira				  as Character
-	Data appKey                 as Character
-	Data codigoBarra					  as Character
-	Data linhaDigitavel				  as Character
-	Data qrCodeUrl					    as Character
-	Data qrCodeTxId				      as Character
-	Data qrCodeEmv				      as Character
-	Public Data aHeader         as Array
-	Public Data cResult         as Character
-	Public Data urlImagemBoleto as Character
+	Data cURL                                 as Character
+	Data cClientID                            as Character
+	Data cClientSecret                        as Character
+	Data numeroVariacaoCarteira               as Character
+	Data codigoConvenio                       as Character
+	Data codigoBanco                          as Character
+	Data codigoAgencia                        as Character
+	Data codigoConta                          as Character
+	Data codigoModalidade			                as Character
+	Data numeroCarteira				                as Character
+	Data appKey                               as Character
+	Data qrCodeUrl					                  as Character
+	Data qrCodeTxId				                    as Character
+	Data codigoAceite						              as Character
+	Data indicadorPermissaoRecebimentoParcial as Character
+	Data indicadorPix						              as Character
+	Data codigoTipoTitulo				              as Numeric
+	Data jurosMora                            as Numeric
+	Public Data cToken                        as Character
+	Public Data codigoBarra					          as Character
+	Public Data linhaDigitavel				        as Character
+	Public Data qrCodeEmv				              as Character
+	Public Data cAuthBasic                    as Character
+	Public Data urlImagemBoleto               as Character
+	Public Data aHeader                       as Array
+	Public Data cResult                       as Object
 
 	public method new()
 	public method registraboletos()
@@ -38,6 +43,8 @@ class bancodobrasil
 	public method excluiboletos()
 	public method recebeboletos()
 	public method imprimeboletos()
+	public method consultaboleto()
+	public method consultapix()
 	public method geratoken()
 
 endclass
@@ -54,29 +61,36 @@ Cria objeto integração Banco do Brasil
 @param numeroVariacaoCarteira, character, numero da variacao da carteira
 @param codigoModalidade, character, codigo da modalidade
 @param numeroCarteira, character, numero da carteira
+@param cURL, character, URL da API do Banco do Brasil
 @param cClientID, character, client ID
 @param cClientSecret, character, client secret
+@param cAppKey, character, codigo da app key
 @return variant, return_description
 /*/
-method new(codigoBanco as Character, codigoAgencia as Character, codigoConta as Character, codigoConvenio as Character, numeroVariacaoCarteira as Character, codigoModalidade as Character, numeroCarteira as Character, cClientID as Character, cClientSecret as Character) class bancodobrasil
+method new(codigoBanco as Character, codigoAgencia as Character, codigoConta as Character, codigoConvenio as Character, numeroVariacaoCarteira as Character, codigoModalidade as Character, numeroCarteira as Character, cURL as Character, cClientID as Character, cClientSecret as Character, cAppKey as Character, codigoAceite as Character, codigoTipoTitulo as Numeric, indicadorPermissaoRecebimentoParcial as Character, indicadorPix as Character, jurosMora as Numeric) class bancodobrasil
 
 	Local oToken      As Object
 	Local _aHeader		:= {}
 
-	::cClientID              := cClientID
-	::cClientSecret          := cClientSecret
-	::cAuthBasic             := "Basic " + Encode64(::cClientID + ":" + ::cClientSecret)
-	oToken                   := ::geratoken()
-	::cToken                 := oToken['token_type']+space(1)+oToken['access_token']
-	::cURL                   := "https://api.bb.com.br/cobrancas/v2"
-	::appKey                 := "gw-dev-app-key=61e42175360c102fb3abbee54097602b"
-	::codigoBanco            := codigoBanco
-	::codigoAgencia          := codigoAgencia
-	::codigoConta            := codigoConta
-	::codigoConvenio         := codigoConvenio
-	::numeroVariacaoCarteira := numeroVariacaoCarteira
-	::codigoModalidade       := codigoModalidade
-	::numeroCarteira         := numeroCarteira
+	::cClientID                            := cClientID
+	::cClientSecret                        := cClientSecret
+	::cAuthBasic                           := "Basic " + Encode64(::cClientID + ":" + ::cClientSecret)
+	oToken                                 := ::geratoken()
+	::cToken                               := oToken['token_type']+space(1)+oToken['access_token']
+	::cURL                                 := cURL
+	::appKey                               := "gw-dev-app-key="+cAppKey
+	::codigoBanco                          := codigoBanco
+	::codigoAgencia                        := codigoAgencia
+	::codigoConta                          := codigoConta
+	::codigoConvenio                       := codigoConvenio
+	::numeroVariacaoCarteira               := numeroVariacaoCarteira
+	::codigoModalidade                     := codigoModalidade
+	::numeroCarteira                       := numeroCarteira
+	::codigoAceite					               := codigoAceite
+	::codigoTipoTitulo			               := codigoTipoTitulo
+	::indicadorPermissaoRecebimentoParcial := indicadorPermissaoRecebimentoParcial
+	::indicadorPix                         := indicadorPix
+	::jurosMora                            := jurosMora
 
 	aadd(_aHeader, "Authorization: "+::cToken)
 	aadd(_aHeader, "Content-Type: application/json")
@@ -111,6 +125,7 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 	Local appkey      := ::appKey
 	Local nVlrAbat	  := 0.00
 	Local codigoCNPJ	:= ""
+	Local lRet 			  := .F.
 	Private oObj	As Object
 
 	cPath := "/boletos?" + appkey
@@ -122,7 +137,7 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 	codigoCNPJ += Subs(SM0->M0_CGC,13,2)
 
 	codigoCNPJ := cvaltochar(val(STRTRAN(STRTRAN(STRTRAN(STRTRAN(STRTRAN(Alltrim(codigoCNPJ),"CNPJ:",""),".",""),"/",""),"-","")," ","")))
-	::cResult := ""
+	::cResult := JsonObject():New()
 	DbSelectArea("SE1")
 	SE1->(DbSetorder(1))
 	SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
@@ -141,11 +156,10 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 	oJsonBB["numeroVariacaoCarteira"]                := ::numeroVariacaoCarteira
 	oJsonBB["codigoModalidade"]                      := ::codigoModalidade
 	oJsonBB["dataEmissao"]                           := StrTran(Dtoc(SE1->E1_EMISSAO),"/",".")
-
-	oJsonBB["codigoAceite"]                          := "A"
-	oJsonBB["codigoTipoTitulo"]                      := 2
+	oJsonBB["codigoAceite"]                          := ::codigoAceite
+	oJsonBB["codigoTipoTitulo"]                      := ::codigoTipoTitulo
 	oJsonBB["descricaoTipoTitulo"]                   := "DM"
-	oJsonBB["indicadorPermissaoRecebimentoParcial"]  := "N"
+	oJsonBB["indicadorPermissaoRecebimentoParcial"]  := ::indicadorPermissaoRecebimentoParcial
 	oJsonBB["numeroTituloBeneficiario"]              := Alltrim(titulo) + AllTrim(parcela)
 	oJsonBB["numeroTituloCliente"]                   := "000" + ::codigoConvenio + StrZero(Val(Right(Alltrim(titulo),07)),07) + StrZERO(Val(Alltrim(parcela)),3)
 
@@ -155,7 +169,7 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 
 // Juros de mora
 	oJuros["tipo"]        := 2 //Domínio: 0 - Dispensar; 1 - Valor fixo por dia de atraso; 2 - Taxa mensal; 3 - Isento.
-	oJuros["porcentagem"] := 10.00
+	oJuros["porcentagem"] := ::jurosMora
 	oJsonBB["jurosMora"]  := oJuros
 
 // Multa
@@ -181,7 +195,7 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 	oJsonBB["beneficiarioFinal"] := oBenFinal
 
 // PIX
-	oJsonBB["indicadorPix"] := "S"
+	oJsonBB["indicadorPix"] := ::indicadorPix
 	oRestBB := FwRest():New( ::cURL )
 	oRestBB:SetPath( cPath )
 	oRestBB:SetPostParams(oJsonBB:ToJson())
@@ -196,35 +210,31 @@ method registraboletos(prefixo as Character, titulo as Character, parcela as Cha
 			::qrCodeTxId         := oResponse["qrCode"]['txId']
 			::qrCodeEmv          := oResponse["qrCode"]['emv']
 			::urlImagemBoleto    := oResponse['urlImagemBoleto']
-			oResponse['code']    := oRestBB:oResponseH:CSTATUSCODE
-			oResponse['status']  := oRestBB:oResponseH:LLEGACYSUCCESS
-			oResponse['message'] := oRestBB:oResponseH:CREASON +' - '+ 'Título registrado com sucesso no Banco do Brasil'
-			::cResult += oResponse:tojson()
+
+			::cResult := oObj
 			If (Empty(SE1->E1_NUMBCO) .or. Empty(SE1->E1_AGEDEP) .or. Empty(SE1->E1_CONTA) .or. Empty(SE1->E1_PORTADO))
 				RecLock("SE1",.F.)
-				Replace SE1->E1_NUMBCO   with oResponse['numero']           //nosso numero
-				Replace SE1->E1_NOSNUM   with oResponse['numero']           //nosso numero
-				Replace SE1->E1_MOVIMEN	 with ddatabase                     //Data movimentação
-				Replace SE1->E1_PORTADO	 with ::codigoBanco                 //codigo banco
-				Replace SE1->E1_AGEDEP 	 with ::codigoAgencia               //agencia sem DV
-				Replace SE1->E1_CONTA  	 with ::codigoConta                 //conta sem DV
-				Replace SE1->E1_SITUACA	 with "1"                           //Situação do Título - 0=Carteira;1=Cob.Simples;2=Descontada;3=Caucionada;4=Vinculada;5=Advogado;6=Judicial
-				//Replace SE1->E1_XXBOIMP  with "S"                             //Coloca como ja impresso
-				Replace SE1->E1_OK       with ""                              //Para retirar a seleção do campo assim que é impresso
-				Replace SE1->E1_XQRCODE  with ::qrCodeEmv                     //QRCode
-				Replace SE1->E1_CODBAR   with ::codigoBarra                   //Código de Barra
-				Replace SE1->E1_CODDIG   with ::linhaDigitavel                //Linha Digitável
+				Replace SE1->E1_NUMBCO   with oResponse['numero']      //nosso numero
+				Replace SE1->E1_NOSNUM   with oResponse['numero']      //nosso numero
+				Replace SE1->E1_MOVIMEN	 with ddatabase                //Data movimentação
+				Replace SE1->E1_PORTADO	 with ::codigoBanco            //codigo banco
+				Replace SE1->E1_AGEDEP 	 with ::codigoAgencia          //agencia sem DV
+				Replace SE1->E1_CONTA  	 with ::codigoConta            //conta sem DV
+				Replace SE1->E1_SITUACA	 with ::codigoModalidade       //Situação do Título - 0=Carteira;1=Cob.Simples;2=Descontada;3=Caucionada;4=Vinculada;5=Advogado;6=Judicial
+				//Replace SE1->E1_XXBOIMP  with "S"                  //Coloca como ja impresso
+				Replace SE1->E1_OK       with ""                       //Para retirar a seleção do campo assim que é impresso
+				Replace SE1->E1_XQRCODE  with ::qrCodeEmv              //QRCode
+				Replace SE1->E1_CODBAR   with ::codigoBarra            //Código de Barra
+				Replace SE1->E1_CODDIG   with ::linhaDigitavel         //Linha Digitável
 				MsUnLock()
+				lRet := .T.
 			Endif
 		EndIf
 	else
 		FWJsonDeserialize(oRestBB:GetResult(),@oObj)
-		oResponse['code']    := oRestBB:oResponseH:CSTATUSCODE
-		oResponse['status']  := oRestBB:oResponseH:LLEGACYSUCCESS
-		oResponse['message'] := DECODEUTF8(oObj:ERROS[1]['MENSAGEM'])
-		::cResult += oResponse:tojson()
+		::cResult := oObj
 	endif
-Return
+Return lRet
 
 /*/{Protheus.doc} bancodobrasil::alteraboletos
 Altera informações do título junto ao Banco do Brasil
@@ -242,7 +252,7 @@ method alteraboletos(prefixo as Character, titulo as Character, parcela as Chara
 
 	Local aArea       := GetArea()
 	Local oJsonBB			as Object
-	//Local oRestBB	    as Object
+	Local lRet	    := .F.
 	Local oDtaVcto    as Object
 	Local oInclAbat	  as Object
 	Local cPath                 := "/boletos/"
@@ -250,11 +260,12 @@ method alteraboletos(prefixo as Character, titulo as Character, parcela as Chara
 	Local cResult							  := ""
 	Local lInclueAbatatimento	  := .F.
 	Local cBody								  := ""
-	Local cHeaderRet          := ""
+	Local cHeaderRet            := ""
+	Local oResponse             := JsonObject():New()
 	//Local lAlteraAbatimento	    := .F.
 	//Local lValorNominal         := .F.
 	//Local nValorAbatimento      := 0.00
-
+	::cResult := JsonObject():New()
 	if valtype(novoVencimento) == "D"
 		lDataVencimento := .T.
 	endif
@@ -281,9 +292,127 @@ method alteraboletos(prefixo as Character, titulo as Character, parcela as Chara
 	endif
 	cBody := EncodeUTF8(oJsonBB:ToJson())
 	cResult := HTTPQuote(::cURL + cPath, "PATCH", "", cBody, 120, aClone(::aHeader), @cHeaderRet)
+	IF !Empty(cResult)
+		FWJsonDeserialize(cResult,@oResponse)
+		if AttIsMemberOf(oResponse,"errors") .or. AttIsMemberOf(oResponse,"bbmsg")
+			::cResult := oResponse
+		else
+			::cResult := oResponse
+			lRet := .T.
+		endif
+	Else
+		oResponse := JsonObject():New()
+		oResponse["errors"] := "Erro na comunicação com o Banco do Brasil."
+		::cResult := oResponse
+	endif
+	RestArea(aArea)
+Return lRet
+
+/*/{Protheus.doc} bancodobrasil::consultaboleto
+Consulta detalhes de um boleto bancário.
+@type method
+@version 1.0
+@author iglal
+@since 11/7/2025
+@param situacao, character, Situação do boleto. Campo obrigatoriamente MAIÚSCULO. Domínios: A - Em ser B - Baixados/Protestados/Liquidados
+@return variant, return_description
+/*/
+method consultaboleto(idTitulo as Character) class bancodobrasil
+
+	Local aArea                 := GetArea()
+	Local oRestBB			          as Object
+	Local cPath                 := "/boletos/"
+	Local cGetParam 					  := ""
+	Local oResponse             := JsonObject():New()
+	Local oObj	                := JsonObject():New()
+	Local lRet	                := .F.
+
+	cGetParam += ::appKey
+	cGetParam += "&numeroConvenio=" + ::codigoConvenio
+
+	//cGetParam += "&Authorization=" + ::cToken
+
+	cPath += alltrim(idTitulo)
+	::cResult := JsonObject():New()
+	cPath += "?" + cGetParam
+	oRestBB := FwRest():New( ::cURL )
+	oRestBB:SetPath( cPath )
+	if oRestBB:Get( ::aHeader)
+		If FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+			oResponse:FromJson(oRestBB:GetResult())
+			::cResult        := oObj
+			::linhaDigitavel := oObj:CODIGOLINHADIGITAVEL
+			::codigoBarra    := oObj:TEXTOCODIGOBARRASTITULOCOBRANCA
+			RecLock("SE1",.F.)
+			Replace SE1->E1_CODBAR   with ::codigoBarra                   //Código de Barra
+			Replace SE1->E1_CODDIG   with ::linhaDigitavel                //Linha Digitável
+			MsUnLock()
+			lRet := .T.
+		EndIf
+	else
+		FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+		//if AttIsMemberOf(oObj,"errors") .or. AttIsMemberOf(oObj,"bbmsg")
+		::cResult := oObj
+		//endif
+	endif
 
 	RestArea(aArea)
-Return Nil
+Return lRet
+
+/*/{Protheus.doc} bancodobrasil::consultapix
+Consultar os dados de um Pix vinculado a um boleto de cobrança.
+@type method
+@version  
+@author Igor Guimarães
+@since 11/8/2025
+@param idTitulo, character, Nosso Número
+@return variant, return_description
+/*/
+method consultapix(idTitulo as Character) class bancodobrasil
+
+	Local aArea                 := GetArea()
+	Local oRestBB			          as Object
+	Local cPath                 := "/boletos/"
+	Local cGetParam 					  := ""
+	Local oResponse             := JsonObject():New()
+	Local oObj	                := JsonObject():New()
+	Local lRet	                := .F.
+
+	cGetParam += ::appKey
+	cGetParam += "&numeroConvenio=" + ::codigoConvenio
+
+	//cGetParam += "&Authorization=" + ::cToken
+
+	cPath += alltrim(idTitulo)
+	cPath += "/pix"
+	::cResult := JsonObject():New()
+	cPath += "?" + cGetParam
+	oRestBB := FwRest():New( ::cURL )
+	oRestBB:SetPath( cPath )
+	if oRestBB:Get( ::aHeader)
+		If FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+			oResponse:FromJson(oRestBB:GetResult())
+
+			::qrCodeUrl          := oObj:QRCODEURL
+			::qrCodeTxId         := oObj:QRCODETXID
+			::qrCodeEmv          := oObj:QRCODEEMV
+
+			::cResult := oObj
+
+			RecLock("SE1",.F.)
+			Replace SE1->E1_XQRCODE  with ::qrCodeEmv                     //QRCode
+			MsUnLock()
+			lRet := .T.
+		EndIf
+	else
+		FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+		//if AttIsMemberOf(oObj,"errors") .or. AttIsMemberOf(oObj,"bbmsg")
+		::cResult := oObj
+		//endif
+	endif
+
+	RestArea(aArea)
+Return lRet
 
 /*/{Protheus.doc} bancodobrasil::imprimeboletos
 Imprime o boleto registrado no Banco do Brasil
@@ -599,6 +728,7 @@ method geratoken() class bancodobrasil
 	local cHeaderGet as Character
 	local aHeadStr  :={}//as array
 	Local cBasic    := ::cAuthBasic
+	Local cResult 	:= ""
 
 	Aadd(aHeadStr, "Authorization: "+cBasic)
 	Aadd(aHeadStr, "Content-Type: application/x-www-form-urlencoded")
@@ -609,15 +739,15 @@ method geratoken() class bancodobrasil
 	//Efetua o POST na API
 
 	//::cResult := HTTPSPost( cURL, "", "", "", "", cAc_Token, nTimeOut, aHeadOut, @cHeadRet )
-	::cResult := HTTPPost(cUrl, /*cGetParms*/, cPostParms, /*nTimeOut*/, aHeadStr, @cHeaderGet)
+	cResult := HTTPPost(cUrl, /*cGetParms*/, cPostParms, /*nTimeOut*/, aHeadStr, @cHeaderGet)
 
 	//Exibe o retorno do POST e também o header de retorno
-	ConOut("Retorno do POST gToken:", ::cResult)
+	ConOut("Retorno do POST gToken:", cResult)
 	ConOut("Header do POST gToken:", cHeaderGet)
 
 	//Transforma o retorno em um JSON
 	jJsonToken := JsonObject():New()
-	jJsonToken:FromJson(::cResult)
+	jJsonToken:FromJson(cResult)
 
 return (jJsonToken)
 

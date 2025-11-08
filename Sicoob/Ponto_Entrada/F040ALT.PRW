@@ -4,7 +4,7 @@
 #INCLUDE "RPTDEF.CH"
 #INCLUDE "FWPrintSetup.ch"
 /*/{Protheus.doc} F040ALT
-O ponto de entrada F040ALT valida os dados da alteração apos a confirmação da mesma.
+O ponto de entrada F040ALT valida os dados da alteraï¿½ï¿½o apos a confirmaï¿½ï¿½o da mesma.
 
 @type function
 @version  
@@ -22,7 +22,7 @@ user function FA040ALT()
 	Local cAgeCNAB    := SE1->E1_AGEDEP
 	Local cCtaCNAB    := SE1->E1_CONTA
 	Local nPOS        := 1
-	Local cCodClie    := "e24ab947-b2b6-4c55-86fb-2662a014a63b" // o ideal é criar um campo na tabela SEE para guardar o Id_client
+	Local cCodClie    := "e24ab947-b2b6-4c55-86fb-2662a014a63b" // o ideal ï¿½ criar um campo na tabela SEE para guardar o Id_client
 	Local nVlrAbat    := SomaAbat(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,"R",1,,SE1->E1_CLIENTE,SE1->E1_LOJA)
 	Local nValorReal  := (SE1->E1_SALDO-nVlrAbat+ SE1->E1_ACRESC - SE1->E1_DECRESC)
 	Local cFilePrint  := ""
@@ -32,42 +32,49 @@ user function FA040ALT()
 	Local cPath 	   := GetTempPath() + "totvsprinter\"
 	Local oBancoBB    as object
 	Local oPrn        as object
+	Local lSucess 		:= .F.
 
 	if NOLDVENREA <> M->E1_VENCREA
 
 		if SE1->E1_PORTADO == "001" //Banco do Brasil
 			U_IntegBB(@oBancoBB, cBcoCNAB, cAgeCNAB, cCtaCNAB)
-			cFilePrint := "BOL_" + Alltrim(SE1->E1_PREFIXO)+"_" + Alltrim(SE1->E1_NUM) + Alltrim(SE1->E1_PARCELA) + Alltrim(SE1->E1_TIPO)  + "_" + AllTrim(SE1->E1_CLIENTE) + "_" + AllTrim(SE1->E1_LOJA)
 
-			oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
-			oBancoBB:alteraboletos(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,SE1->E1_TIPO,M->E1_VENCREA)
-			oPrn:SetViewPDF(.F.)
-			oPrn:Print()
-			lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+			lSucess := oBancoBB:alteraboletos(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,SE1->E1_TIPO,M->E1_VENCREA)
+			IF lSucess
+				lSucess := oBancoBB:consultaBoleto(Alltrim(SE1->E1_NUMBCO))
+				IF lSucess
+					cFilePrint := "BOL_" + Alltrim(SE1->E1_PREFIXO)+"_" + Alltrim(SE1->E1_NUM) + Alltrim(SE1->E1_PARCELA) + Alltrim(SE1->E1_TIPO)  + "_" + AllTrim(SE1->E1_CLIENTE) + "_" + AllTrim(SE1->E1_LOJA)
+					oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
+					oPrn:SetViewPDF(.F.)
+					oBancoBB:imprimeboletos(SE1->E1_PREFIXO, SE1->E1_NUM, SE1->E1_PARCELA, SE1->E1_TIPO, oPrn)
+					oPrn:Print()
+					lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
 
-			while lEspera
-				sleep(500)
-				nI++
-				lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
-				if nI > 60
-					lEspera := .F.
-				endif
-			enddo
+					while lEspera
+						sleep(500)
+						nI++
+						lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+						if nI > 60
+							lEspera := .F.
+						endif
+					enddo
 
-			if nI <= 60
-				cArqBs64 := U_FileTo64(cPath + cFilePrint + ".pdf")
-				SE1->(DbSetorder(1))
-				SE1->(DbSeek( xFilial("SE1") + (cTMPSE1)->E1_PREFIXO + (cTMPSE1)->E1_NUM + (cTMPSE1)->E1_PARCELA + (cTMPSE1)->E1_TIPO ))
-				RecLock("SE1",.F.)
-				Replace SE1->E1_XXBOIMP  with "S"
-				SE1->(DbUnlock())
-			endif
+					if nI <= 60
+						cArqBs64 := U_FileTo64(cPath + cFilePrint + ".pdf")
+						SE1->(DbSetorder(1))
+						SE1->(DbSeek( xFilial("SE1") + (cTMPSE1)->E1_PREFIXO + (cTMPSE1)->E1_NUM + (cTMPSE1)->E1_PARCELA + (cTMPSE1)->E1_TIPO ))
+						RecLock("SE1",.F.)
+						Replace SE1->E1_XXBOIMP  with "S"
+						SE1->(DbUnlock())
+					endif
+					FwFreeObj(oPrn)
+				ENDIF
+			ENDIF
 
-			FwFreeObj(oPrn)
 		elseif SE1->E1_PORTADO == "756" //Sicoob
 
 			AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
-			//Buscando parâmetros de banco  e atualizando o array de bancos
+			//Buscando parï¿½metros de banco  e atualizando o array de bancos
 			dbSelectArea("SEE")
 			dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
 			dbSeek( XFILIAL("SEE")	+ cBcoCNAB    + cAgeCNAB   + cCtaCNAB   +  '001',     .T.)
@@ -95,12 +102,12 @@ user function FA040ALT()
 			aBancos[nPOS][16]   :=  SEE->EE_XXTXJDI
 			SEE->(DbCloseArea())
 
-			aDadosTit   := {AllTrim(SE1->E1_NUM)+AllTrim(SE1->E1_PARCELA)   ,;  // [1] Número do título
-			SE1->E1_EMISSAO                                                 ,;  // [2] Data da emissão do título
-			dDataBase                                                       ,;  // [3] Data da emissão do boleto
+			aDadosTit   := {AllTrim(SE1->E1_NUM)+AllTrim(SE1->E1_PARCELA)   ,;  // [1] Nï¿½mero do tï¿½tulo
+			SE1->E1_EMISSAO                                                 ,;  // [2] Data da emissï¿½o do tï¿½tulo
+			dDataBase                                                       ,;  // [3] Data da emissï¿½o do boleto
 			M->E1_VENCREA                                                 ,;  // [4] Data do vencimento
-			nValorReal                                                      ,;  // [5] Valor do título
-			STRTRAN(alltrim(SE1->E1_NOSNUM),"-","")                         ,;  // [6] Nosso número (Ver fórmula para calculo)
+			nValorReal                                                      ,;  // [5] Valor do tï¿½tulo
+			STRTRAN(alltrim(SE1->E1_NOSNUM),"-","")                         ,;  // [6] Nosso nï¿½mero (Ver fï¿½rmula para calculo)
 			SE1->E1_PREFIXO                                                 ,;  // [7] Prefixo da NF
 			SE1->E1_TIPO                                                    ,;  // [8] Tipo do Titulo
 			SE1->(Recno()) }                                                   // [9] Recno                                                    // [8] Tipo do Titulo
@@ -127,7 +134,7 @@ user function FA040ALT()
 				aDados[4] := 'Pague preferencialmente no SICOOB.'  			// Local de pagamento
 				aDados[5] := substr(dtos(M->E1_VENCREA),7,2)+"/"+substr(dtos(M->E1_VENCREA),5,2)+"/"+substr(dtos(M->E1_VENCREA),1,4)	//Vencimento
 				aDados[6] :=  cNomeCed                                     //Nome do Cedente
-				aDados[7] :=  aBancos[nPOS][10] + "/" + aBancos[nPOS][8]   //Agencia / Codigo Convênio
+				aDados[7] :=  aBancos[nPOS][10] + "/" + aBancos[nPOS][8]   //Agencia / Codigo Convï¿½nio
 				aDados[8] := substr(dtos(SE1->E1_EMISSAO),7,2)+"/"+substr(dtos(SE1->E1_EMISSAO),5,2)+"/"+substr(dtos(SE1->E1_EMISSAO),1,4)	//Data de Emissao
 				aDados[9] := SE1->E1_IDCNAB
 				aDados[10]:= 'DM' 	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
@@ -135,25 +142,25 @@ user function FA040ALT()
 				aDados[12]:= DTOC(dDatabase)
 				aDados[13] := Alltrim(SE1->E1_NOSNUM)
 				aDados[14]:= aBancos[nPOS][12]
-				aDados[15]:= "REAL"                             //Moeda/espécie
-				aDados[16]:= ""                                 //Quantidade de moeda variável
-				aDados[17]:= TRANSF(nValorReal,"@E 999,999.99")	//Valor do Título    (calculado - descrescimos + acrescimentos - abatimentos)
+				aDados[15]:= "REAL"                             //Moeda/espï¿½cie
+				aDados[16]:= ""                                 //Quantidade de moeda variï¿½vel
+				aDados[17]:= TRANSF(nValorReal,"@E 999,999.99")	//Valor do Tï¿½tulo    (calculado - descrescimos + acrescimentos - abatimentos)
 				aDados[13] := Alltrim(SE1->E1_NOSNUM)
-				aDados[18]:=  ""                                //Instruções  //Verificar
-				aDados[19]:=  ""                                //Desconto / Abatimento		//Não preencher
+				aDados[18]:=  ""                                //Instruï¿½ï¿½es  //Verificar
+				aDados[19]:=  ""                                //Desconto / Abatimento		//Nï¿½o preencher
 
 				//Linha G do Boleto
-				aDados[20]:=  ""                                //Juros / Multa             //Não preencher
+				aDados[20]:=  ""                                //Juros / Multa             //Nï¿½o preencher
 
 				//Linha H do Boleto
-				aDados[21]:=  nValorReal                       //Valor Cobrado              //Não preencher
+				aDados[21]:=  nValorReal                       //Valor Cobrado              //Nï¿½o preencher
 
 				//Linha I do Boleto
 				aDados[22]:= cSacado                          //Sacado (Nome, CNPJ)
-				aDados[23]:= cEndSac                          //Endereço
+				aDados[23]:= cEndSac                          //Endereï¿½o
 				aDados[24]:= cEndSac1                         //CEP - CIDADE - MUNICIPIO - ESTADO
 				aDados[25]:= cNomeCli                         //Sacado
-				aDados[26]:= cEndCed                          //Endereço do Cedente
+				aDados[26]:= cEndCed                          //Endereï¿½o do Cedente
 
 				//Tratando as mensagem  da SEE
 				aDados[28]:= cMens1                           //Mensagem 1
@@ -174,7 +181,7 @@ user function FA040ALT()
 
 				If cJurDia > 0
 					xValJurDIa := (cJurDia/100)				//Juros dia
-					aDados[32] := xValJurDIa				//Valor diário da Multa
+					aDados[32] := xValJurDIa				//Valor diï¿½rio da Multa
 				endif
 
 				aDados[33]   := SE1->E1_DESCFIN/100			//Valor do Desconto
