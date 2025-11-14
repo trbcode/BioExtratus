@@ -46,11 +46,13 @@ User Function MS520VLD()
 	Local lRet          := .T.
 	Local cNosso        :=""
 	Local cCodBco       := ""
+	Local cCodAge       := ""
+	Local cCodCta       := ""
 	Local cSerie        := Padr(SF2->F2_SERIE,TAMSX3("F2_SERIE")[1])
 	Local cNumTit       := Padr(SF2->F2_DOC,TAMSX3("F2_DOC")[1])
 	Local cChaveSE1     := cSerie + cNumTit
 	Local aDados        := {}
-
+	private oBancoBB    as Object
 	If SM0->M0_CODIGO == "01" .AND. AllTrim(SM0->M0_CODFIL) == '01'
 		// Verfica se o Boleto dessa NF já foi impresso ou enviado ao banco.
 		U_BIOFAT21(SF2->F2_PREFIXO, SF2->F2_DUPL)
@@ -100,6 +102,8 @@ User Function MS520VLD()
 			aDados := {}
 			cNosso  := Alltrim(SE1->E1_NUMBCO)
 			cCodBco := Alltrim(SE1->E1_PORTADO)
+			cCodAge := Alltrim(SE1->E1_AGEDEP)
+			cCodCta := Alltrim(SE1->E1_CONTA)
 
 			if Empty(cNosso)
 				SE1->(DBSkip())
@@ -112,6 +116,10 @@ User Function MS520VLD()
 
 			If cCodBco == "756"
 				lRet := U_BEWS0002("EXC",,,,,,aDados,,,)//sicoob
+			elseif cCodBco == "001"
+				U_IntegBB(@oBancoBB,cCodBco, cCodAge, cCodCta)
+				lRet := oBancoBB:excluiBoletos(Alltrim(cNosso))
+				FwFreeObj(oBancoBB)
 			EndIf
 			SE1->(DBSkip())
 		EndDo

@@ -202,7 +202,7 @@ Static Function MenuDef()
 	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
-	ADD OPTION aRotina TITLE 'Imprime Boleto BB'	ACTION 'U_ImpBolBB(3)'   OPERATION 1 ACCESS 0// */
+	ADD OPTION aRotina TITLE 'Imprime Boleto BB'	ACTION 'U_ImpBolBB(4)'   OPERATION 1 ACCESS 0// */
 
 	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
 
@@ -1183,7 +1183,7 @@ User Function BOLCANC(cCodClie)
 	Local aDados    := {}
 	Local aBancos   := {}
 	Local lRet      := .T.
-
+	private oBancoBB as Object
 	AADD(aBancos, { "756","SICOOB",          "756.bmp"    , "756-0",,,,,,,,"",,,,})
 	//Busca os títulos selecionados para cancelamento
 	If Len(cMarc) > 0
@@ -1324,18 +1324,31 @@ User Function BOLCANC(cCodClie)
 
 			//Ainda não gerou borderô ou cancelou titulo do borderô - poderá excluir
 		Else
-			IF QRY1->E1_PORTADO == "756" //sicoob
+			if QRY1->E1_PORTADO == "756" //sicoob
+				//Realizando o cancelamento junto ao sicoob
 				lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados, , , , cCodClie)
 				If !lRet
 					MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao SICOOB . Comunique a Equipe Protheus!", "ATENCAO!")
 				EndIf
+			elseif QRY1->E1_PORTADO == "001" //banco do brasil
+				//Realizando o cancelamento junto ao banco do brasil
+				U_IntegBB(@oBancoBB,cBanco, Alltrim(cAgencia), Alltrim(cConta))
+				lRet := oBancoBB:excluiboletos( Alltrim(QRY1->E1_NOSNUM))
+				If !lRet
+					if AttIsMemberOf(oBancoBB:CRESULT,"errors")
+						MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " - " + DecodeUTF8(oBancoBB:CRESULT:ERRORS[1]['MESSAGE'], "cp1252"), "ATENCAO!")
+					else
+						MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao BANCO DO BRASIL . Comunique a Equipe Protheus!", "ATENCAO!")
+					endif
+				EndIf
+			endif
+			if lRet
+				If TcSqlExec(cUpd) < 0
+					MsgStop("08 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + ". Comunique a Equipe Protheus!", "ATENCAO!")
+				else
+					aadd(aTitulos, {SE1->E1_NUM, SE1->E1_NOSNUM, SE1->E1_CLIENTE, SE1->E1_NOMCLI })
+				EndIf
 			EndIf
-			If TcSqlExec(cUpd) < 0
-				MsgStop("08 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + ". Comunique a Equipe Protheus!", "ATENCAO!")
-			ELSE
-				aadd(aTitulos, {SE1->E1_NUM, SE1->E1_NOSNUM, SE1->E1_CLIENTE, SE1->E1_NOMCLI })
-			EndIf
-
 		endif
 
 		QRY1->(dbSkip())
@@ -1549,6 +1562,7 @@ Imprime Boleto Banco do Brasil
 User Function ImpBolBB(nOpc)
 	Local aArea      := GetArea()
 	Local oBancoBB as object
+	Local oPrn		 as object
 	Local cFilePrint := ""
 	Local cTMPSE1    := GetNextAlias()
 	Local _cCodfil   := xFilial("SE1")
@@ -1581,11 +1595,26 @@ User Function ImpBolBB(nOpc)
 
 		WHILE (cTMPSE1)->(!Eof())
 			if nOpc == 1
-				cFilePrint := "BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)
+
+				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .T./*gera BasePDF */,cPath, cFilePrint)
+
+			elseif nOpc == 2
+				lSucess :=oBancoBB:consultapix(Alltrim((cTMPSE1)->E1_NOSNUM))
+				if lSucess
+					lEspera := .F.
+				endif
+			elseif nOpc == 3
+				lSucess := oBancoBB:consultaBoleto(Alltrim(SE1->E1_NUMBCO))
+				if lSucess
+					lEspera := .F.
+				endif
+			elseif nOpc == 4
+
+				cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
 
 				oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
-				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn)
-				oPrn:SetViewPDF(.F.)
+				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .F./*gera BasePDF */,cPath, cFilePrint)
+				oPrn:SetViewPDF(.T.)
 				oPrn:Print()
 				lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
 
@@ -1608,16 +1637,6 @@ User Function ImpBolBB(nOpc)
 				endif
 
 				FwFreeObj(oPrn)
-			elseif nOpc == 2
-				lSucess :=oBancoBB:consultapix(Alltrim((cTMPSE1)->E1_NOSNUM))
-				if lSucess
-					lEspera := .F.
-				endif
-			elseif nOpc == 3
-				lSucess := oBancoBB:consultaBoleto(Alltrim(SE1->E1_NUMBCO))
-				if lSucess
-					lEspera := .F.
-				endif
 			endif
 			(cTMPSE1)->(DbSkip())
 		EndDo

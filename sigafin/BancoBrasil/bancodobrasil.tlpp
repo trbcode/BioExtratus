@@ -1,5 +1,9 @@
 #include "tlpp-core.th"
 #include "tlpp-rest.th"
+#Include "TopConn.ch"
+#include "protheus.ch"
+#INCLUDE 'FWMVCDEF.CH'
+#INCLUDE "RPTDEF.CH"
 
 /*/{Protheus.doc} bancodobrasil
 Classe responsável pelas integrações com Banco do Brasil via API REST
@@ -35,13 +39,15 @@ class bancodobrasil
 	Public Data cAuthBasic                    as Character
 	Public Data urlImagemBoleto               as Character
 	Public Data aHeader                       as Array
+	Public Data aRecebidosSucesso             as Array
+	Public Data aRecebidosErro                as Array
 	Public Data cResult                       as Object
 
 	public method new()
 	public method registraboletos()
 	public method alteraboletos()
 	public method excluiboletos()
-	public method recebeboletos()
+	public method recebimentoboletos()
 	public method imprimeboletos()
 	public method consultaboleto()
 	public method consultapix()
@@ -65,7 +71,7 @@ Cria objeto integração Banco do Brasil
 @param cClientID, character, client ID
 @param cClientSecret, character, client secret
 @param cAppKey, character, codigo da app key
-@return variant, return_description
+@return variant, objeto criado
 /*/
 method new(codigoBanco as Character, codigoAgencia as Character, codigoConta as Character, codigoConvenio as Character, numeroVariacaoCarteira as Character, codigoModalidade as Character, numeroCarteira as Character, cURL as Character, cClientID as Character, cClientSecret as Character, cAppKey as Character, codigoAceite as Character, codigoTipoTitulo as Numeric, indicadorPermissaoRecebimentoParcial as Character, indicadorPix as Character, jurosMora as Numeric) class bancodobrasil
 
@@ -242,11 +248,11 @@ Altera informações do título junto ao Banco do Brasil
 @version 1.1
 @author Igor Guimarães
 @since 11/4/2025
-@param prefixo, character, param_description
-@param titulo, character, param_description
-@param parcela, character, param_description
-@param tipo, character, param_description
-@return variant, return_description
+@param prefixo, character, prefixo do título
+@param titulo, character, número do título
+@param parcela, character, número da parcela
+@param tipo, character, tipo do título
+@return variant, .T. se a alteração for bem sucedida, caso contrário .F.
 /*/
 method alteraboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, novoVencimento as Date, novoValorNominal as Numeric) class bancodobrasil
 
@@ -312,10 +318,10 @@ Return lRet
 Consulta detalhes de um boleto bancário.
 @type method
 @version 1.0
-@author iglal
+@author Igor Guimarães
 @since 11/7/2025
 @param situacao, character, Situação do boleto. Campo obrigatoriamente MAIÚSCULO. Domínios: A - Em ser B - Baixados/Protestados/Liquidados
-@return variant, return_description
+@return variant, .T. se a consulta for bem sucedida, caso contrário .F.
 /*/
 method consultaboleto(idTitulo as Character) class bancodobrasil
 
@@ -343,11 +349,13 @@ method consultaboleto(idTitulo as Character) class bancodobrasil
 			::cResult        := oObj
 			::linhaDigitavel := oObj:CODIGOLINHADIGITAVEL
 			::codigoBarra    := oObj:TEXTOCODIGOBARRASTITULOCOBRANCA
-			RecLock("SE1",.F.)
-			Replace SE1->E1_CODBAR   with ::codigoBarra                   //Código de Barra
-			Replace SE1->E1_CODDIG   with ::linhaDigitavel                //Linha Digitável
-			MsUnLock()
-			lRet := .T.
+			if !Empty(::linhaDigitavel) .and. !Empty(::codigoBarra)
+				RecLock("SE1",.F.)
+				Replace SE1->E1_CODBAR   with ::codigoBarra                   //Código de Barra
+				Replace SE1->E1_CODDIG   with ::linhaDigitavel                //Linha Digitável
+				MsUnLock()
+				lRet := .T.
+			EndIf
 		EndIf
 	else
 		FWJsonDeserialize(oRestBB:GetResult(),@oObj)
@@ -362,11 +370,11 @@ Return lRet
 /*/{Protheus.doc} bancodobrasil::consultapix
 Consultar os dados de um Pix vinculado a um boleto de cobrança.
 @type method
-@version  
+@version 1.0  
 @author Igor Guimarães
 @since 11/8/2025
 @param idTitulo, character, Nosso Número
-@return variant, return_description
+@return variant, .T. se a consulta for bem sucedida, caso contrário .F.
 /*/
 method consultapix(idTitulo as Character) class bancodobrasil
 
@@ -413,6 +421,158 @@ method consultapix(idTitulo as Character) class bancodobrasil
 
 	RestArea(aArea)
 Return lRet
+/*/{Protheus.doc} bancodobrasil::excluiboletos
+Exclui o boleto registrado no Banco do Brasil
+@type method
+@version 1.0
+@author Igor Guimarães
+@since 11/12/2025
+@param idTitulo, character, Nosso Número
+@return variant, Retorna .T. se a exclusão for bem sucedida, caso contrário .F.
+/*/
+method excluiboletos(idTitulo as Character) class bancodobrasil
+
+	Local aArea       := GetArea()
+	Local oJsonBB	    := JsonObject():New()
+	Local oResponse   := JsonObject():New()
+	Local oObj	      := JsonObject():New()
+	Local cPath       := "/boletos/"
+	Local cBody			  := ""
+	Local lRet	      := .F.
+	Local nRecno 	    := 0
+
+	cPath += alltrim(idTitulo) +"/baixar"+ "?" + ::appKey
+	::cResult := JsonObject():New()
+
+	nRecno := U_GetChave(alltrim(idTitulo))
+	dbSelectArea( "SE1" )
+	SE1->(DbGoTo(nRecno))
+
+	oJsonBB['numeroConvenio']    := val(::codigoConvenio)
+
+	cBody := EncodeUTF8(oJsonBB:ToJson())
+
+	oJsonBB := FWRest():New(::cURL)
+	oJsonBB:SetPath(cPath)
+	oJsonBB:SetPostParams(cBody)
+	If oJsonBB:POST( ::aHeader )
+		if FWJsonDeserialize(oJsonBB:GetResult(),@oObj)
+			oResponse:FromJson(oJsonBB:GetResult())
+			::cResult := oResponse
+			lRet := .T.
+		EndIf
+	Else
+		FWJsonDeserialize(oJsonBB:GetResult(),@oObj)
+		::cResult := oObj
+	Endif
+	RestArea(aArea)
+Return lRet
+
+
+/*/{Protheus.doc} bancodobrasil::recebimentoboletos
+Baixas sobre recebimento dos títulos a receber do Banco do Brasil
+@type method
+@version 1.0
+@author Igor Guimarães
+@since 11/14/2025
+@param cDataInicioMovimentacao, character, Data de início da movimentação no formato dd.mm.aaaa
+@param cDataFimMovimentacao, character, Data de fim da movimentação no formato dd.mm.aaaa
+@param indicadorSituacao, character, Situação do boleto. Campo obrigatoriamente MAIÚSCULO. Domínios: A - Em ser B - Baixados/Protestados/Liquidados
+@param nValorRegistro, numeric, valor cobrado por registro retornado
+@return variant, .T. se a consulta for bem sucedida, caso contrário .F. 
+/*/
+method recebimentoboletos(cDataInicioMovimentacao as Character, cDataFimMovimentacao as Character,indicadorSituacao as Character, nValorRegistro as Numeric) class bancodobrasil
+	Local aArea       := GetArea()
+	Local oRestBB	    As Object
+	Local cPath       := "/boletos?" + ::appKey
+	Local oResponse   := JsonObject():New()
+	Local oObj	      := JsonObject():New()
+	Local lLiq        := .F.
+	Local lRet	      := .F.
+	Local cGetParam 	:= ""
+	Local nX ,nY      := 0
+	Local nRecno      := 0
+	Local nValBx      := 0
+	Local nVlrJur     := 0
+	Local cPeriodo  	:= ""
+	Local dDatabkp    := ctod("")
+	Local dDatMov     := ctod("")
+	Local dDatCred    := ctod("")
+	Local cNosso      := ""
+	Private nTotal    := 0
+	Private nTotJur   := 0
+	Private nTotReg   := 0
+	Default indicadorSituacao := "B"
+
+	dDatabkp  := dDataBase
+
+	if !valtype(cDataInicioMovimentacao) == "C" .and. !valtype(cDataFimMovimentacao) == "C"
+
+		For nX:= 1 to 7
+			if datavalida(DATE()-nX) <> DATE()
+				cDataInicioMovimentacao := STRZERO(DAY(DATE()-nX),2)+"."+STRZERO(MONTH(DATE()-nX),2)+"."+CVALTOCHAR(YEAR(DATE()-nX))
+				dDataBase := DATE()-nX
+				EXIT
+			EndIf
+		Next nX
+
+		cDataFimMovimentacao   := cDataInicioMovimentacao
+	EndIf
+	cPeriodo  := substr(cDataInicioMovimentacao,1,2)+"/"+substr(cDataInicioMovimentacao,4,2)+"/"+substr(cDataInicioMovimentacao,7,4) +" à " + substr(cDataFimMovimentacao,1,2)+"/"+substr(cDataFimMovimentacao,4,2)+"/"+substr(cDataFimMovimentacao,7,4)
+
+	cGetParam += "&indicadorSituacao=" + indicadorSituacao
+	cGetParam += "&agenciaBeneficiario=" + ::codigoAgencia
+	cGetParam += "&contaBeneficiario=" + ::codigoConta
+	cGetParam += "&dataInicioMovimento=" + cDataInicioMovimentacao
+	cGetParam += "&dataFimMovimento=" + cDataFimMovimentacao
+
+	::cResult := JsonObject():New()
+
+	oRestBB := FwRest():New( ::cURL )
+	oRestBB:SetPath( cPath + cGetParam )
+	oRestBB:Get( ::aHeader)
+	If FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+		If oObj <> Nil
+			oResponse:FromJson(oRestBB:GetResult())
+			connOut("Início do processamento de baixas - Período: "+cPeriodo)
+			For nY:= 1 to Len(oObj:boletos)
+				nVlrJur := 0
+				lLiq := oObj:boletos[nY]['CODIGOESTADOTITULOCOBRANCA'] == 6
+				cNosso := substr(oObj:boletos[nY]['NUMEROBOLETOBB'],4)
+				nRecno := GetChave(cNosso)
+				nValBx := oObj:boletos[nY]['VALORATUAL']
+				dDatMov := datavalida(ctod(strtran(oObj:boletos[nY]['DATAMOVIMENTO'],".","/")))
+				dDatCred := datavalida(ctod(strtran(oObj:boletos[nY]['DATACREDITO'],".","/")))
+				If lLiq
+					ntotal += oObj:boletos[nY]['VALORPAGO']
+					natual += oObj:boletos[nY]['VALORATUAL']
+					If (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL']) > nVlrReg
+						nVlrJur := (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL'])
+						nTotJur += nVlrJur
+					endIf
+					If Ws10GrBx(nRecno, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCred,dDatMov,nVlrJur)
+						FWLogMsg("WARN", "", "Sucesso", "RLWS0010", "", "", EncodeUTF8("O titulo com o nosso numero "+cNosso+" foi baixado com sucesso!") , 0, 0)
+					Else
+						FWLogMsg("WARN", "", "Erro", "RLWS0010", "", "", EncodeUTF8("Erro ao baixar titulo com o nosso numero "+cNosso+"!") , 0, 0)
+					EndIf
+				EndIf
+			Next nY
+			ConOut( "Valor total baixa ="+Transform(ntotal,'@E 999,999,999.99'))
+			ConOut( "Valor total Original ="+Transform(natual,'@E 999,999,999.99'))
+			ConOut( "Valor total Original ="+Transform(nTotJur,'@E 999,999,999.99'))
+			lRet := .T.
+			::cResult := oObj
+		else
+			FWJsonDeserialize(oRestBB:GetResult(),@oObj)
+			::cResult := oObj
+		endif
+	EndIf
+	dDataBase := dDatabkp
+
+	restArea(aArea)
+Return lRet
+
+
 
 /*/{Protheus.doc} bancodobrasil::imprimeboletos
 Imprime o boleto registrado no Banco do Brasil
@@ -425,22 +585,25 @@ Imprime o boleto registrado no Banco do Brasil
 @param parcela, character, parcela do título
 @param tipo, character, tipo do título
 @param oBoleto, object, objeto boleto
-@return variant, return_description
+@return variant, não possui retorno
 /*/
-method imprimeboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, oBoleto as Object) class bancodobrasil
+method imprimeboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, oBoleto as Object, lGeraBase64 as Logical, cPath as Character, cFilePrint as Character) class bancodobrasil
 
 	Local aArea       := GetArea()
+	Local nZ          := 0
 	Local nI          := 0
 	Local nY          := 0
 	Local nCol        := 0
 	Local nLin        := 0
 	Local cString     := ""
-	Local lAdjuLeg    := oBoleto:LADJUSTTOLEGACY
+	Local lAdjuLeg    := .F.
 	Local cCodConv    := ""
 	Local cBcoCNAB    := ""
 	Local cAgeCNAB    := ""
 	Local cCtaCNAB    := ""
-	//Local oResponse	  := JsonObject():New()
+	Local lEspera	    := .T.
+	Local cArqBs64		:= ""
+	Local oResponse   := JsonObject():New()
 	Local nVlrAbat    := 0.00
 	Private oFont8    as Object
 	Private oFont11n  as Object
@@ -471,6 +634,43 @@ method imprimeboletos(prefixo as Character, titulo as Character, parcela as Char
 	Private aDadosBol   := {}
 	Private aDadosBanco := {}
 
+
+	Default lGeraBase64   := .F.
+
+
+	::cResult := JsonObject():New()
+
+	DbSelectArea("SE1")
+	SE1->(DbSetorder(1))
+	SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
+	nVlrAbat := U_xSomaAbat( prefixo, titulo, parcela, "R", SE1->E1_MOEDA, , SE1->E1_CLIENTE, SE1->E1_LOJA )
+	cCodConv  := ::codigoConvenio
+	cBcoCNAB  := SE1->E1_PORTADO
+	cAgeCNAB  := SE1->E1_AGEDEP
+	cCtaCNAB  := SE1->E1_CONTA
+	nJurosD   := SE1->E1_PORCJUR
+	cPrefix   := PadR(prefixo,TamSX3("E1_PREFIXO")[1])
+	cNumero   := PadR(titulo,TamSX3("E1_NUM")[1])
+	cChaveSA6 := PadR(cBcoCNAB,TamSX3("A6_COD")[1])+PadR(cAgeCNAB,TamSX3("A6_AGENCIA")[1])+PadR(cCtaCNAB,TamSX3("A6_NUMCON")[1])
+	aBolText    := { "", "", "" }
+
+	Default	cFilePrint := "BOL_"+Alltrim(SE1->E1_PREFIXO)+"_"+Alltrim(SE1->E1_NUM)+Alltrim(SE1->E1_PARCELA)+Alltrim(SE1->E1_TIPO)+"_"+AllTrim(SE1->E1_CLIENTE)+"_"+AllTrim(SE1->E1_LOJA)
+	Default cPath 	   := GetTempPath() + "totvsprinter\"
+	if empty(cFilePrint)
+		cFilePrint := strtran("BOL_"+alltrim(SE1->E1_PREFIXO)+Alltrim(SE1->E1_NUM)+Alltrim(SE1->E1_PARCELA)+Alltrim(SE1->E1_TIPO)+"_"+AllTrim(SE1->E1_CLIENTE)+"_"+AllTrim(SE1->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
+	endif
+	if empty(cPath)
+		cPath 	    := GetTempPath() + "totvsprinter\"
+	endif
+	IF lGeraBase64
+		cPath            := "\temp\"
+		oBoleto          := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,cPath,.T.)
+		oBoleto:cPathPDF := cPath
+		oBoleto:SetViewPDF(.F.)
+	ENDIF
+
+	lAdjuLeg         := oBoleto:LADJUSTTOLEGACY
+
 	oFont8   := TFontEx():New(oBoleto,"Arial",8,8,.F.,.T.,.F.)
 	oFont10  := TFontEx():New(oBoleto,"Arial",10,10,.F.,.T.,.F.)
 	oFont10n := TFontEx():New(oBoleto,"Arial",10,10,.T.,.T.,.F.)
@@ -493,22 +693,12 @@ method imprimeboletos(prefixo as Character, titulo as Character, parcela as Char
 	oFont21  := TFontEx():New(oBoleto,"Arial",21,21,.F.,.T.,.F.)
 	oFont24  := TFontEx():New(oBoleto,"Arial",24,24,.F.,.T.,.F.)
 
-	DbSelectArea("SE1")
-	SE1->(DbSetorder(1))
-	SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
-	nVlrAbat := U_xSomaAbat( prefixo, titulo, parcela, "R", SE1->E1_MOEDA, , SE1->E1_CLIENTE, SE1->E1_LOJA )
-	cCodConv  := ::codigoConvenio
-	cBcoCNAB  := SE1->E1_PORTADO
-	cAgeCNAB  := SE1->E1_AGEDEP
-	cCtaCNAB  := SE1->E1_CONTA
-	nJurosD   := SE1->E1_PORCJUR
-	cPrefix   := PadR(prefixo,TamSX3("E1_PREFIXO")[1])
-	cNumero   := PadR(titulo,TamSX3("E1_NUM")[1])
-	cChaveSA6 := PadR(cBcoCNAB,TamSX3("A6_COD")[1])+PadR(cAgeCNAB,TamSX3("A6_AGENCIA")[1])+PadR(cCtaCNAB,TamSX3("A6_NUMCON")[1])
-	aBolText    := { "", "", "" }
 	DbSelectArea("SA1")
 	dbSetOrder(1)
 	dbSeek(xFilial("SA1") + SE1->E1_CLIENTE + SE1->E1_LOJA)
+
+	lSucess := ::consultapix(Alltrim(SE1->E1_NOSNUM))
+	lSucess := ::consultaBoleto(Alltrim(SE1->E1_NOSNUM))
 
 	If Empty(SA1->A1_ENDCOB)
 		aDatSacado   := {AllTrim(SA1->A1_NOME)           ,;     // [1]Razão Social
@@ -710,6 +900,38 @@ method imprimeboletos(prefixo as Character, titulo as Character, parcela as Char
 	oBoleto:EndPage()
 	oBoleto:LADJUSTTOLEGACY := lAdjuLeg
 
+	if lGeraBase64
+
+		oBoleto:Print()
+		lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+		while lEspera
+			sleep(500)
+			nZ++
+			lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+			if nZ > 60
+				lEspera := .F.
+			endif
+		enddo
+
+		if nZ <= 60
+			cArqBs64 := U_FileTo64(cPath + cFilePrint + ".pdf")
+			SE1->(DbSetorder(1))
+			SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
+			RecLock("SE1",.F.)
+			Replace SE1->E1_XXBOIMP  with "S"
+			SE1->(DbUnlock())
+			oResponse['Code'] := "200"
+			oResponse['Message'] := "Boleto impresso com sucesso."
+			oResponse['Base64'] := cArqBs64
+
+		endif
+
+		FwFreeObj(oBoleto)
+		RestArea(aArea)
+		::cResult := oResponse
+		Return
+	EndIf
+
 	RestArea(aArea)
 Return
 
@@ -719,7 +941,7 @@ Gera token de autenticação para API Banco do Brasil
 @version 1.0
 @author Igor Guimaraes
 @since 10/28/2025
-@return variant, return_description
+@return variant, Retorna o objeto JSON com o token gerado
 /*/
 method geratoken() class bancodobrasil
 
@@ -752,23 +974,23 @@ method geratoken() class bancodobrasil
 return (jJsonToken)
 
 /*/{Protheus.doc} xSomaAbat
-description
+Calcula o total de abatimentos de um título
 @type function
-@version  
+@version 1.0  
 @author igor guimaraes
 @since 11/2/2025
-@param cPrefixo, character, param_description
-@param cNumero, character, param_description
-@param cParcela, character, param_description
-@param cCart, character, param_description
-@param nMoeda, numeric, param_description
-@param dData, date, param_description
-@param cFornCli, character, param_description
-@param cLoja, character, param_description
-@param cFilAbat, character, param_description
-@param dDataRef, date, param_description
-@param cTipo, character, param_description
-@return variant, return_description
+@param cPrefixo, character,  prefixo do titulo
+@param cNumero, character, número do título
+@param cParcela, character, número da parcela
+@param cCart, character, tipo de cartão
+@param nMoeda, numeric, código da moeda
+@param dData, date, data de referência
+@param cFornCli, character, código do fornecedor ou cliente
+@param cLoja, character, código da loja
+@param cFilAbat, character, código da filial para abatimento
+@param dDataRef, date, data de referência para abatimento
+@param cTipo, character, tipo do título
+@return variant, .T. se a consulta for bem sucedida, caso contrário .F.
 /*/
 User Function xSomaAbat(cPrefixo,cNumero,cParcela,cCart,nMoeda,dData,cFornCli,cLoja,cFilAbat, dDataRef, cTipo)
 
@@ -865,3 +1087,106 @@ User Function xSomaAbat(cPrefixo,cNumero,cParcela,cCart,nMoeda,dData,cFornCli,cL
 	Endif
 	RestArea(aArea)
 Return(nTotAbat)
+
+/*/{Protheus.doc} GetChave
+Retona a chave primaria do registro na tabela SE1 a partir do nosso número
+@type function
+@version 1.0
+@author Igor Guimaraes
+@since 11/12/2025
+@param cNosso, character, número do nosso número
+@return variant, recno do registro
+/*/
+User Function GetChave(cNosso)
+
+	Local aArea	:= GetArea()
+	Local nRet      := 0
+	Local cTMPSE1   := GetNextAlias()
+
+	BeginSql Alias cTMPSE1
+        SELECT
+            R_E_C_N_O_
+        FROM
+            %Table:SE1% E1
+        WHERE
+            E1.E1_NUMBCO = %Exp:cNosso%
+            AND D_E_L_E_T_ = ' '
+	EndSql
+	if (cTMPSE1)->(!Eof())
+		nRet := (cTMPSE1)->(R_E_C_N_O_)
+	EndIf
+	(cTMPSE1)->(DbCloseArea())
+	RestArea(aArea)
+Return(nRet)
+
+/*/{Protheus.doc} Ws10GrBx
+Rotina Execauto baixa titulos a receber
+@type function
+@version 1.0  
+@author Igor Guimaraes
+@since 11/14/2025
+@param nRecnoSE1, numeric, número do registro na tabela SE1
+@param nValBx, numeric, valor da baixa
+@param cBcoCNAB, character, código do banco no formato CNAB
+@param cAgeCNAB, character, código da agência no formato CNAB
+@param cCtaCNAB, character, código da conta no formato CNAB
+@param dDatCred, date, data de crédito
+@param dDatMov, date, data do movimento
+@param nVlrJur, numeric, valor dos juros
+@return variant, .T. se a baixa for realizada com sucesso, caso contrário .F.
+/*/
+Static Function Ws10GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCred,dDatMov,nVlrJur)
+
+	Local aAreaSE1       := GetArea()
+	Local lRet           :=  .F.
+	Local aVetor         := {}
+	Private lMsErroAuto  := .F.
+	Private lMsHelpAuto  := .T.
+	Private lMostraErro  := .F.
+	Default nValBx       := 0
+	Default nRecnoSE1    := 0
+
+	lMsErroAuto := .F.
+	dbSelectArea( "SE1" )
+	SE1->(DbGoTo(nRecnoSE1))
+
+	If SE1->E1_SALDO > 0
+
+		AADD(aVetor,{"E1_PREFIXO"		, SE1->E1_PREFIXO 		,Nil})
+		AADD(aVetor,{"E1_NUM"			, SE1->E1_NUM       	,Nil})
+		AADD(aVetor,{"E1_PARCELA"		, SE1->E1_PARCELA  		,Nil})
+		AADD(aVetor,{"E1_TIPO"	   	 	, SE1->E1_TIPO     		,Nil})
+		AADD(aVetor,{"E1_CLIENTE"		, SE1->E1_CLIENTE  		,Nil})
+		AADD(aVetor,{"E1_LOJA"	    	, SE1->E1_LOJA     		,Nil})
+		AADD(aVetor,{"E1_MOEDA"	    	, SE1->E1_MOEDA     	,Nil})
+		AADD(aVetor,{"AUTMOTBX"	    	, "NOR"            		,Nil})
+		AADD(aVetor,{"AUTDTBAIXA"		, dDatMov				,Nil})
+		AADD(aVetor,{"AUTDTCREDITO" 	, dDatCred				,Nil})
+		AADD(aVetor,{"AUTHIST"	    	, OemToAnsi("BAIXA API BB")	,Nil})
+		AADD(aVetor,{"AUTBANCO"			, cBcoCNAB				,NIL}) //Banco
+		AADD(aVetor,{"AUTAGENCIA"		, PADR(cAgeCNAB,TAMSX3("E1_AGEDEP")[1]),NIL}) //agencia
+		AADD(aVetor,{"AUTCONTA"			, PADR(cCtaCNAB,TAMSX3("E1_CONTA")[1]),NIL}) //Conta
+		if nVlrJur > 0
+			AADD(aVetor,{"AUTJUROS"	    ,nVlrJur                ,Nil })
+		EndIF
+		AADD(aVetor,{"AUTVALREC"		, nValBx+nVlrJur		,NIL}) //Valor de pagamento
+
+		MSExecAuto({|x,y| Fina070(x,y)},aVetor,3)
+
+		//Em caso de erro na baixa desarma a transacao
+		If lMsErroAuto
+			lRet:= .F.
+			Aadd(::aRecebidosErro,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+			If !IsBlind()
+				MOSTRAERRO() // Sempre que o micro comeca a apitar esta ocorrendo um erro desta forma
+			EndIf
+		Else
+			Aadd(::aRecebidosSucesso,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+			lRet := .T.
+		Endif
+	Else
+		Aadd(::aRecebidosErro,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+		lRet := .F.
+	Endif
+	RestArea(aAreaSE1)
+Return lRet
