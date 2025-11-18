@@ -500,8 +500,10 @@ method recebimentoboletos(cDataInicioMovimentacao as Character, cDataFimMoviment
 	Local dDatCred    := ctod("")
 	Local cNosso      := ""
 	Private nTotal    := 0
+	Private natual    := 0
 	Private nTotJur   := 0
 	Private nTotReg   := 0
+	Default nValorRegistro := 0.95
 	Default indicadorSituacao := "B"
 
 	dDatabkp  := dDataBase
@@ -521,8 +523,8 @@ method recebimentoboletos(cDataInicioMovimentacao as Character, cDataFimMoviment
 	cPeriodo  := substr(cDataInicioMovimentacao,1,2)+"/"+substr(cDataInicioMovimentacao,4,2)+"/"+substr(cDataInicioMovimentacao,7,4) +" à " + substr(cDataFimMovimentacao,1,2)+"/"+substr(cDataFimMovimentacao,4,2)+"/"+substr(cDataFimMovimentacao,7,4)
 
 	cGetParam += "&indicadorSituacao=" + indicadorSituacao
-	cGetParam += "&agenciaBeneficiario=" + ::codigoAgencia
-	cGetParam += "&contaBeneficiario=" + ::codigoConta
+	cGetParam += "&agenciaBeneficiario=" + Alltrim(::codigoAgencia)
+	cGetParam += "&contaBeneficiario=" + Alltrim(::codigoConta)
 	cGetParam += "&dataInicioMovimento=" + cDataInicioMovimentacao
 	cGetParam += "&dataFimMovimento=" + cDataFimMovimentacao
 
@@ -534,26 +536,31 @@ method recebimentoboletos(cDataInicioMovimentacao as Character, cDataFimMoviment
 	If FWJsonDeserialize(oRestBB:GetResult(),@oObj)
 		If oObj <> Nil
 			oResponse:FromJson(oRestBB:GetResult())
-			connOut("Início do processamento de baixas - Período: "+cPeriodo)
+			FWLogMsg("INFO",/*cTransactionId*/,"API-BB", /*cCategory*/, /*cStep*/, /*cMsgId*/, "Início do processamento de baixas - Período: "+cPeriodo, /*nMensure*/, /*nElapseTime*/, /*aMessage*/)
 			For nY:= 1 to Len(oObj:boletos)
 				nVlrJur := 0
 				lLiq := oObj:boletos[nY]['CODIGOESTADOTITULOCOBRANCA'] == 6
-				cNosso := substr(oObj:boletos[nY]['NUMEROBOLETOBB'],4)
-				nRecno := GetChave(cNosso)
-				nValBx := oObj:boletos[nY]['VALORATUAL']
-				dDatMov := datavalida(ctod(strtran(oObj:boletos[nY]['DATAMOVIMENTO'],".","/")))
-				dDatCred := datavalida(ctod(strtran(oObj:boletos[nY]['DATACREDITO'],".","/")))
 				If lLiq
-					ntotal += oObj:boletos[nY]['VALORPAGO']
-					natual += oObj:boletos[nY]['VALORATUAL']
-					If (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL']) > nVlrReg
-						nVlrJur := (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL'])
-						nTotJur += nVlrJur
-					endIf
-					If Ws10GrBx(nRecno, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCred,dDatMov,nVlrJur)
-						FWLogMsg("WARN", "", "Sucesso", "RLWS0010", "", "", EncodeUTF8("O titulo com o nosso numero "+cNosso+" foi baixado com sucesso!") , 0, 0)
-					Else
-						FWLogMsg("WARN", "", "Erro", "RLWS0010", "", "", EncodeUTF8("Erro ao baixar titulo com o nosso numero "+cNosso+"!") , 0, 0)
+					cNosso := AllTrim(oObj:boletos[nY]['NUMEROBOLETOBB'])
+					nRecno := U_GetChave(cNosso)
+					IF nRecno > 0
+						nValBx := oObj:boletos[nY]['VALORATUAL']
+						dDatMov := datavalida(ctod(strtran(oObj:boletos[nY]['DATAMOVIMENTO'],".","/")))
+						dDatCred := datavalida(ctod(strtran(oObj:boletos[nY]['DATACREDITO'],".","/")))
+						ntotal += oObj:boletos[nY]['VALORPAGO']
+						natual += oObj:boletos[nY]['VALORATUAL']
+						If (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL']) > nValorRegistro
+							nVlrJur := (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL'])
+							nTotJur += nVlrJur
+						endIf
+						::aRecebidosSucesso := {}
+						::aRecebidosErro := {}
+
+						If Ws10GrBx(nRecno, nValBx, ::codigoBanco, ::codigoAgencia, ::codigoConta,dDatCred,dDatMov,nVlrJur, @::aRecebidosSucesso, @::aRecebidosErro)
+							FWLogMsg("WARN", "", "Sucesso", "RLWS0010", "", "", EncodeUTF8("O titulo com o nosso numero "+cNosso+" foi baixado com sucesso!") , 0, 0)
+						Else
+							FWLogMsg("WARN", "", "Erro", "RLWS0010", "", "", EncodeUTF8("Erro ao baixar titulo com o nosso numero "+cNosso+"!") , 0, 0)
+						EndIf
 					EndIf
 				EndIf
 			Next nY
@@ -1135,7 +1142,7 @@ Rotina Execauto baixa titulos a receber
 @param nVlrJur, numeric, valor dos juros
 @return variant, .T. se a baixa for realizada com sucesso, caso contrário .F.
 /*/
-Static Function Ws10GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCred,dDatMov,nVlrJur)
+Static Function Ws10GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCred,dDatMov,nVlrJur, aRecebidosSucesso,aRecebidosErro)
 
 	Local aAreaSE1       := GetArea()
 	Local lRet           :=  .F.
@@ -1176,16 +1183,16 @@ Static Function Ws10GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCre
 		//Em caso de erro na baixa desarma a transacao
 		If lMsErroAuto
 			lRet:= .F.
-			Aadd(::aRecebidosErro,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+			Aadd(aRecebidosErro,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
 			If !IsBlind()
 				MOSTRAERRO() // Sempre que o micro comeca a apitar esta ocorrendo um erro desta forma
 			EndIf
 		Else
-			Aadd(::aRecebidosSucesso,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+			Aadd(aRecebidosSucesso,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
 			lRet := .T.
 		Endif
 	Else
-		Aadd(::aRecebidosErro,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
+		Aadd(aRecebidosErro,{Alltrim(SE1->E1_PREFIXO),SE1->E1_NUM,SE1->E1_PARCELA,Alltrim(SE1->E1_NUMBCO),SE1->E1_CLIENTE +"/"+SE1->E1_LOJA+"-"+Alltrim(SE1->E1_NOMCLI),SE1->E1_EMISSAO,SE1->E1_VENCREA,nValBx,nVlrJur})
 		lRet := .F.
 	Endif
 	RestArea(aAreaSE1)

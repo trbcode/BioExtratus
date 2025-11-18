@@ -26,8 +26,16 @@
 	"lastPrograms": [
 		{
 			"label": "SIGAMDI"
+		},
+		{
+			"args": [
+				"BB"
+			],
+			"label": "U_BEFINM01"
 		}
 	],
-	"lastProgramExecuted": "SIGAMDI",
-	"lastProgramArguments": []
+	"lastProgramExecuted": "U_BEFINM01",
+	"lastProgramArguments": [
+		"BB"
+	]
 }
