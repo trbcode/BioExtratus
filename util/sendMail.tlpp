@@ -55,6 +55,6 @@ Method Send(cSubject, cTo, cCc, cHtml) class sendMail
 	oProcess:Start()
 	oProcess:Finish()
 
-	WFSendMail({"01","0201"})
+	WFSendMail({"01","01"})
 
 Return Self
