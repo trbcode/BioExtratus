@@ -77,12 +77,35 @@ method new(codigoBanco as Character, codigoAgencia as Character, codigoConta as 
 
 	Local oToken      As Object
 	Local _aHeader		:= {}
+	Local cJsonStr  := ""
+	Local oJsonToken	:= JsonObject():New()
+	Local cResultToken := ""
+	Local cFile := '\system\bb_tkn_'+Alltrim(codigoBanco)+Alltrim(codigoAgencia)+Alltrim(codigoConta)+'.json'
+	Local lValidToken := .F.
+	Local nValidToken := 0
+	Local nAgoraUnix  := U_DateTimeToNow()
 
-	::cClientID                            := cClientID
-	::cClientSecret                        := cClientSecret
-	::cAuthBasic                           := "Basic " + Encode64(::cClientID + ":" + ::cClientSecret)
-	oToken                                 := ::geratoken()
-	::cToken                               := oToken['token_type']+space(1)+oToken['access_token']
+	// Le a string JSON do arquivo do disco
+	cJsonStr := U_xReadFile(cFile)
+	cResultToken := oJsonToken:fromJson(cJsonStr)
+
+	If empty(cResultToken)
+		::cToken     := oJsonToken:GetJSonobject('token')
+		nValidToken  := oJsonToken['expires_at']
+		If nValidToken >= nAgoraUnix
+			lValidToken  := .T.
+		EndIf
+	EndIf
+
+	::cClientID         := cClientID
+	::cClientSecret     := cClientSecret
+	::cAuthBasic        := "Basic " + Encode64(::cClientID + ":" + ::cClientSecret)
+
+	if !lValidToken
+		oToken                                 := ::geratoken(Alltrim(codigoBanco),Alltrim(codigoAgencia),Alltrim(codigoConta))
+		::cToken                               := oToken['token_type']+space(1)+oToken['access_token']
+	endif
+
 	::cURL                                 := cURL
 	::appKey                               := "gw-dev-app-key="+cAppKey
 	::codigoBanco                          := codigoBanco
@@ -252,65 +275,539 @@ Altera informações do título junto ao Banco do Brasil
 @param titulo, character, número do título
 @param parcela, character, número da parcela
 @param tipo, character, tipo do título
+@param dNovoVencimento, date, nova data de vencimento
+@param nNovoValorNominal, numeric, novo valor nominal
+@param nNovoValorAbatimento, numeric, novo valor de abatimento
+@param nTipo1Desc, numeric, Código para identificação do tipo de desconto que deverá ser concedido como Primeiro Desconto. Valores a informar: 0 - Sem desconto 1 - Valor fixo até a data 2 - Percentual até a data informada 3 - Desconto por dia de antecipação
+@param nVlr1Desc, numeric, valor do 1º desconto
+@param nPerc1Desc, numeric, Novo percentual de desconto sobre o valor do boleto no Primeiro Desconto
+@param dData1Desc, date, nova data limite para o 1º desconto
+@param nTipo2Desc, numeric, Código para identificação do tipo de desconto que deverá ser concedido como Segundo Desconto. Valores a informar: 0 - Sem desconto 1 - Valor fixo até a data 2 - Percentual até a data informada 3 - Desconto por dia de antecipação
+@param nVlr2Desc, numeric, valor do 2º desconto
+@param nPerc2Desc, numeric, Novo percentual de desconto sobre o valor do boleto no Segundo Desconto
+@param dData2Desc, date, nova data limite para o 2º desconto
+@param nTipo3Desc, numeric, Código para identificação do tipo de desconto que deverá ser concedido como Terceiro Desconto. Valores a informar: 0 - Sem desconto 1 - Valor fixo até a data 2 - Percentual até a data informada 3 - Desconto por dia de antecipação
+@param nVlr3Desc, numeric, valor do 3º desconto
+@param nPerc3Desc, numeric, Novo percentual de desconto sobre o valor do boleto no Terceiro Desconto
+@param dData3Desc, date, nova data limite para o 3º desconto
+@param cIndNovaDataVenc, character, Indicador de alteração da data de vencimento. Valores a informar: S - Sim N - Não
+@param cIndNovoValorNominal, character, Indicador de alteração do valor nominal. Valores a informar: S - Sim N - Não
+@param cIndAtribuirDesc, character, Indicador de atribuição de desconto. Valores a informar: S - Sim N - Não
+@param cIndAlterarDesc, character, Indicador de alteração de desconto. Valores a informar: S - Sim N - Não
+@param cIndAlterarDataDesc, character, Indicador de alteração da data limite de desconto. Valores a informar: S - Sim N - Não
+@param cIndProtestar, character, Indicador de protesto. Valores a informar: S - Sim N - Não
+@param cIndSustarProtesto, character, Indicador de sustação de protesto. Valores a informar: S - Sim N - Não
+@param cIndCancelarProtesto, character, Indicador de cancelamento de protesto. Valores a informar: S - Sim N - Não
+@param cIndIncluirAbat, character, Indicador de inclusão de abatimento. Valores a informar: S - Sim N - Não
+@param cIndAlterarAbat, character, Indicador de alteração de abatimento. Valores a informar: S - Sim N - Não
+@param cIndCobrarJuros, character, Indicador de cobrança de juros. Valores a informar: S - Sim N - Não
+@param cIndDispensarJuros, character, Indicador de dispensa de juros. Valores a informar: S - Sim N - Não
+@param cIndCobrarMulta, character, Indicador de cobrança de multa. Valores a informar: S - Sim N - Não
+@param cIndDispensarMulta, character, Indicador de dispensa de multa. Valores a informar: S - Sim N - Não
+@param cIndNegativar, character, Indicador de negativação. Valores a informar: S - Sim N - Não
+@param cIndAlterarSeuNum, character, Indicador de alteração do seu número. Valores a informar: S - Sim N - Não
+@param cIndAlterarEndPag, character, Indica a intenção de alterar endereço do Pagador no boleto. Valores a informar: "S" -> Sim, desejo alterar "N" -> Não, não desejo alterar
+@param cIndAlterarPrazoVenc, character, Indicador de alteração do prazo para protesto. Valores a informar: S - Sim N - Não
+@param nQtdDiasProtesto, numeric, nova quantidade de dias para protesto
+@param nTipoJuros, numeric, Código para identificação do tipo de Juros de Mora que deverá ser aplicado ao Boleto. Valores a informar: 0 - Dispensar 1 - Valor por dia de atraso 2 - Taxa Mensal 3 - Isento
+@param nValorJuros, numeric, Valor do Juros de Mora a ser aplicado sobre o valor do Boleto
+@param nTaxaJuros, numeric, Taxa do Juros de Mora a ser aplicado sobre o valor do Boleto
+@param nTipoMulta, numeric, Código para identificação do tipo de Multa que deverá ser aplicado ao Boleto. Valores a informar: 0 - Dispensar 1 - Valor fixo 2 - Percentual
+@param nValorMulta, numeric, Valor da Multa a ser aplicado sobre o valor do Boleto
+@param dDataInicioMulta, date, Data a partir da qual a Multa deverá ser aplicada
+@param nTaxaMulta, numeric, Taxa da Multa a ser aplicado sobre o valor do Boleto
+@param nQtdDiasNegativacao, numeric, nova quantidade de dias para negativação
+@param nTipoNegativacao, numeric, Código para identificação do tipo de Negativação que deverá ser aplicado ao Boleto. Valores a informar: 1 - Incluir Negativação 2 - Alterar Negativação 3 - Cancelar Negativação 4 - Excluir Negativação
+@param nOrgaoNegativador, numeric, Código do Órgão Negativador. Domínio: 10 - SERASA 11 - QUOD
+@param cSeuNumero, character, novo seu número
+@param cEndPagador, character, novo endereço do pagador
+@param cBairroPagador, character, novo bairro do pagador
+@param cCidadePagador, character, nova cidade do pagador
+@param cUFPagador, character, nova UF do pagador
+@param nCEPPagador, numeric, novo CEP do pagador
+@param nQtdDiasAceite, numeric, novo prazo para aceite
+@param dNovaDataLim1Desc, date, nova data limite para o 1º desconto
+@param dNovaDataLim2Desc, date, nova data limite para o 2º desconto
+@param dNovaDataLim3Desc, date, nova data limite para o 3º desconto
+
+
 @return variant, .T. se a alteração for bem sucedida, caso contrário .F.
 /*/
-method alteraboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, novoVencimento as Date, novoValorNominal as Numeric) class bancodobrasil
+	method alteraBoletos( ;
+		cPrefixo            as character, ; // prefixo do título
+	cTitulo               as character, ; // número do título
+	cParcela              as character, ; // parcela do título
+	cTipo                 as character, ; // tipo do título
+	cIndNovaDataVenc      as character, ; // Indicador de alteração da data de vencimento. Valores a informar: S - Sim N - Não
+	dNovoVencimento       as date, ; // nova data de vencimento
+	nNovoValorNominal     as numeric, ; // novo valor nominal
+	nNovoValorAbatimento  as numeric, ; // novo valor de abatimento
+	nTipo1Desc            as numeric, ; // Código para identificação do tipo de desconto que deverá ser concedido como Primeiro Desconto. Valores a informar: 0 - Sem desconto 1 - Valor fixo até a data 2 - Percentual até a data informada 3 - Desconto por dia de antecipação
+	nVlr1Desc             as numeric, ; // valor do 1º desconto
+	nPerc1Desc            as numeric, ; // Novo percentual de desconto sobre o valor do boleto no Primeiro Desconto
+	dData1Desc            as date, ; // nova data limite para o 1º desconto
+	nTipo2Desc            as numeric, ; // Código para identificação do tipo de desconto que deverá ser concedido como Segundo Desconto. Valores a informar: 0 - Sem desconto 1 - Valor fixo até a data 2 - Percentual até a data informada 3 - Desconto por dia de antecipação
+	nVlr2Desc             as numeric, ; // valor do 2º desconto
+	nPerc2Desc            as numeric, ; // Novo percentual de desconto sobre o valor do boleto no Segundo Desconto
+	dData2Desc            as date, ; // nova data limite para o 2º desconto
+	nTipo3Desc            as numeric, ; // Código para identificação do tipo de desconto que deverá ser concedido como Terceiro Desconto. Valores a informar: 0 - Sem desconto 1 - Valor fixo até a data 2 - Percentual até a data informada 3 - Desconto por dia de antecipação
+	nVlr3Desc             as numeric, ; // valor do 3º desconto
+	nPerc3Desc            as numeric, ; // Novo percentual de desconto sobre o valor do boleto no Terceiro Desconto
+	dData3Desc            as date, ; // Datas específicas para alteracaoDataDesconto
+	cIndNovoValorNominal  as character, ; // Indicador de alteração do valor nominal. Valores a informar: S - Sim N - Não
+	cIndAtribuirDesc      as character, ; // Indicador de atribuição de desconto. Valores a informar: S - Sim N - Não
+	cIndAlterarDesc       as character, ; // Indicador de alteração de desconto. Valores a informar: S - Sim N - Não
+	cIndAlterarDataDesc   as character, ; // Indicador de alteração da data limite de desconto. Valores a informar: S - Sim N - Não
+	cIndProtestar         as character, ; // Indicador de protesto. Valores a informar: S - Sim N - Não
+	cIndSustarProtesto    as character, ; // Indicador de sustação de protesto. Valores a informar: S - Sim N - Não
+	cIndCancelarProtesto  as character, ; // Indicador de cancelamento de protesto. Valores a informar: S - Sim N - Não
+	cIndIncluirAbat       as character, ; // Indicador de inclusão de abatimento. Valores a informar: S - Sim N - Não
+	cIndAlterarAbat       as character, ; // Indicador de alteração de abatimento. Valores a informar: S - Sim N - Não
+	cIndCobrarJuros       as character, ; // Indicador de cobrança de juros. Valores a informar: S - Sim N - Não
+	cIndDispensarJuros    as character, ; // Indicador de dispensa de juros. Valores a informar: S - Sim N - Não
+	cIndCobrarMulta       as character, ; // Indicador de cobrança de multa. Valores a informar: S - Sim N - Não
+	cIndDispensarMulta    as character, ; // Indicador de dispensa de multa. Valores a informar: S - Sim N - Não
+	cIndNegativar         as character, ; // Indicador de negativação. Valores a informar: S - Sim N - Não
+	cIndAlterarSeuNum     as character, ; // Indicador de alteração do seu número. Valores a informar: S - Sim N - Não
+	cIndAlterarEndPag     as character, ; // Indica a intenção de alterar endereço do Pagador no boleto. Valores a informar: "S" -> Sim, desejo alterar "N" -> Não, não desejo alterar
+	cIndAlterarPrazoVenc  as character, ; // Indicador de alteração do prazo para protesto. Valores a informar: S - Sim N - Não
+	nQtdDiasProtesto      as numeric, ; // nova quantidade de dias para protesto
+	nTipoJuros            as numeric, ; // Tipo de juros
+	nValorJuros           as numeric, ; // Valor de juros
+	nTaxaJuros            as numeric, ; // Taxa de juros
+	nTipoMulta            as numeric, ; // Tipo de multa
+	nValorMulta           as numeric, ; // Valor de multa
+	dDataInicioMulta      as date, ; // Data a partir da qual a Multa deverá ser aplicada
+	nTaxaMulta            as numeric, ; // Taxa de multa
+	nQtdDiasNegativacao   as numeric, ; // nova quantidade de dias para negativação
+	nTipoNegativacao      as numeric, ; // Tipo de negativação
+	nOrgaoNegativador     as numeric, ; // Órgão negativador
+	cSeuNumero            as character, ;// Seu Número
+	cEndPagador           as character, ;// Endereço pagador
+	cBairroPagador        as character, ; // Bairro pagador
+	cCidadePagador        as character, ; // Cidade pagador
+	cUFPagador            as character, ; // UF pagador
+	nCEPPagador           as numeric, ; // CEP pagador
+	nQtdDiasAceite        as numeric, ;   // Prazo boleto vencido
+	dNovaDataLim1Desc     as date, ; // Datas específicas para alteracaoDataDesconto
+	dNovaDataLim2Desc     as date, ; // Datas específicas para alteracaoDataDesconto
+	dNovaDataLim3Desc     as date; // Datas específicas para alteracaoDataDesconto
+	) class bancodobrasil
 
-	Local aArea       := GetArea()
-	Local oJsonBB			as Object
-	Local lRet	    := .F.
-	Local oDtaVcto    as Object
-	Local oInclAbat	  as Object
-	Local cPath                 := "/boletos/"
-	Local lDataVencimento	      := .F.
-	Local cResult							  := ""
-	Local lInclueAbatatimento	  := .F.
-	Local cBody								  := ""
-	Local cHeaderRet            := ""
-	Local oResponse             := JsonObject():New()
-	//Local lAlteraAbatimento	    := .F.
-	//Local lValorNominal         := .F.
-	//Local nValorAbatimento      := 0.00
+	Local aArea        := GetArea()
+	Local oJsonBB      as Object
+	Local lRet         := .F.
+	Local oAltVenc     as Object
+	Local oAltValor    as Object
+	Local oIncDesc     as Object
+	Local oAltDesc     as Object
+	Local oAltDataDesc as Object
+	Local oProtesto    as Object
+	Local oInclAbat    as Object
+	Local oAltAbat     as Object
+	Local oJuros       as Object
+	Local oMulta       as Object
+	Local oNegativacao as Object
+	Local oAltSeuNum   as Object
+	Local oAltEndereco as Object
+	Local oAltPrazo    as Object
+	Local cPath        := "/boletos/"
+	Local cResult      := ""
+	Local cBody        := ""
+	Local cHeaderRet   := ""
+	Local oResponse    := JsonObject():New()
+	Local nVlrAbat     := 0
+
+	Default dNovoVencimento := stod("")
+	Default nNovoValorNominal := 0.00
+	Default nNovoValorAbatimento := 0.00
+	Default cIndNovaDataVenc := ""
+	Default cIndNovoValorNominal := ""
+	Default cIndAtribuirDesc := ""
+	Default cIndAlterarDesc := ""
+	Default cIndAlterarDataDesc := ""
+	Default cIndProtestar := ""
+	Default cIndSustarProtesto := ""
+	Default cIndCancelarProtesto := ""
+	Default cIndIncluirAbat := ""
+	Default cIndAlterarAbat := ""
+	Default cIndCobrarJuros := ""
+	Default cIndDispensarJuros := ""
+	Default cIndCobrarMulta := ""
+	Default cIndDispensarMulta := ""
+	Default cIndNegativar := ""
+	Default cIndAlterarSeuNum := ""
+	Default cIndAlterarEndPag := ""
+	Default cIndAlterarPrazoVenc := ""
+	Default nTipo1Desc := 0
+	Default nVlr1Desc := 0.00
+	Default nPerc1Desc := 0.00
+	Default nTipo2Desc := 0
+	Default nVlr2Desc := 0.00
+	Default nPerc2Desc := 0.00
+	Default nTipo3Desc := 0
+	Default nVlr3Desc := 0.00
+	Default nPerc3Desc := 0.00
+	Default dData1Desc := stod("")
+	Default dData2Desc := stod("")
+	Default dData3Desc := stod("")
+	Default nQtdDiasProtesto := 0
+	Default nTipoJuros := 0
+	Default nValorJuros := 0.00
+	Default nTaxaJuros := 0.00
+	Default nTipoMulta := 0
+	Default nValorMulta := 0.00
+	Default dDataInicioMulta := stod("")
+	Default nTaxaMulta := 0.00
+	Default nQtdDiasNegativacao := 0
+	Default nTipoNegativacao := 0
+	Default nOrgaoNegativador := 0
+	Default cSeuNumero := ""
+	Default cEndPagador := ""
+	Default cBairroPagador := ""
+	Default cCidadePagador := ""
+	Default cUFPagador := ""
+	Default nCEPPagador := 0
+	Default nQtdDiasAceite := 0
+	Default dNovaDataLim1Desc := stod("")
+	Default dNovaDataLim2Desc := stod("")
+	Default dNovaDataLim3Desc := stod("")
+
 	::cResult := JsonObject():New()
-	if valtype(novoVencimento) == "D"
-		lDataVencimento := .T.
-	endif
 
+	//------------------------------------------------------------------------
+	// Localiza título e calcula abatimento atual (se houver)
+	//------------------------------------------------------------------------
 	DbSelectArea("SE1")
-	SE1->(DbSetorder(1))
-	SE1->(DbSeek( xFilial("SE1") + prefixo + titulo + parcela + tipo ))
+	SE1->(DbSetOrder(1))
+	if SE1->(DbSeek( xFilial("SE1") + cPrefixo + cTitulo + cParcela + cTipo ))
 
-	nVlrAbat := U_xSomaAbat( prefixo, titulo, parcela, "R", SE1->E1_MOEDA, , SE1->E1_CLIENTE, SE1->E1_LOJA )
-	cPath += alltrim(SE1->E1_NUMBCO) + "?" + ::appKey
-	oJsonBB := JsonObject():New()
-	oJsonBB["numeroConvenio"] := Val(::codigoConvenio)
-	if lDataVencimento
-		oDtaVcto := JsonObject():New()
-		oJsonBB['indicadorNovaDataVencimento'] := "S"
-		oDtaVcto["novaDataVencimento"] := StrTran(DtoC(novoVencimento),"/",".")
-		oJsonBB['alteracaoData'] := oDtaVcto
-	endif
-	if lInclueAbatatimento
-		oInclAbat := JsonObject():New()
-		oJsonBB['indicadorIncluirAbatimento'] := "S"
-		oInclAbat['valorAbatimento'] := nVlrAbat
-		oJsonBB['abatimento'] := oInclAbat
-	endif
-	cBody := EncodeUTF8(oJsonBB:ToJson())
-	cResult := HTTPQuote(::cURL + cPath, "PATCH", "", cBody, 120, aClone(::aHeader), @cHeaderRet)
-	IF !Empty(cResult)
-		FWJsonDeserialize(cResult,@oResponse)
-		if AttIsMemberOf(oResponse,"errors") .or. AttIsMemberOf(oResponse,"bbmsg")
-			::cResult := oResponse
-		else
-			::cResult := oResponse
-			lRet := .T.
+		nVlrAbat := U_xSomaAbat( cPrefixo, cTitulo, cParcela, "R", ;
+			SE1->E1_MOEDA, , SE1->E1_CLIENTE, SE1->E1_LOJA )
+
+		cPath += AllTrim(SE1->E1_NUMBCO) + "?" + ::appKey
+
+		oJsonBB := JsonObject():New()
+
+		// numeroConvenio
+		oJsonBB["numeroConvenio"] := Val(::codigoConvenio)
+
+		//=================================================================
+		// indicadorNovaDataVencimento / alteracaoData
+		//=================================================================
+		if !Empty(AllTrim(cIndNovaDataVenc))
+			oJsonBB["indicadorNovaDataVencimento"] := AllTrim(cIndNovaDataVenc)
+			if Upper(AllTrim(cIndNovaDataVenc)) == "S" .and. ;
+					ValType(dNovoVencimento) == "D" .and. !Empty(dNovoVencimento)
+
+				oAltVenc := JsonObject():New()
+				oAltVenc["novaDataVencimento"] := StrTran(DtoC(dNovoVencimento), "/", ".")
+				oJsonBB["alteracaoData"] := oAltVenc
+			endif
 		endif
-	Else
+
+		//=================================================================
+		// indicadorNovoValorNominal / alteracaoValor
+		//=================================================================
+		if !Empty(AllTrim(cIndNovoValorNominal))
+			oJsonBB["indicadorNovoValorNominal"] := AllTrim(cIndNovoValorNominal)
+			if Upper(AllTrim(cIndNovoValorNominal)) == "S" .and. ;
+					ValType(nNovoValorNominal) == "N" .and. nNovoValorNominal > 0
+
+				oAltValor := JsonObject():New()
+				oAltValor["novoValorNominal"] := nNovoValorNominal
+				oJsonBB["alteracaoValor"] := oAltValor
+			endif
+		endif
+
+		//=================================================================
+		// indicadorAtribuirDesconto / desconto
+		//=================================================================
+		if !Empty(AllTrim(cIndAtribuirDesc))
+			oJsonBB["indicadorAtribuirDesconto"] := AllTrim(cIndAtribuirDesc)
+
+			if Upper(AllTrim(cIndAtribuirDesc)) == "S"
+				oIncDesc := JsonObject():New()
+
+				// 1º desconto
+				if ValType(nTipo1Desc) == "N"
+					oIncDesc["tipoPrimeiroDesconto"] := nTipo1Desc
+				endif
+				if ValType(nVlr1Desc) == "N"
+					oIncDesc["valorPrimeiroDesconto"] := nVlr1Desc
+				endif
+				if ValType(nPerc1Desc) == "N"
+					oIncDesc["percentualPrimeiroDesconto"] := nPerc1Desc
+				endif
+				if ValType(dData1Desc) == "D" .and. !Empty(dData1Desc)
+					oIncDesc["dataPrimeiroDesconto"] := StrTran(DtoC(dData1Desc), "/", ".")
+				endif
+
+				// 2º desconto
+				if ValType(nTipo2Desc) == "N"
+					oIncDesc["tipoSegundoDesconto"] := nTipo2Desc
+				endif
+				if ValType(nVlr2Desc) == "N"
+					oIncDesc["valorSegundoDesconto"] := nVlr2Desc
+				endif
+				if ValType(nPerc2Desc) == "N"
+					oIncDesc["percentualSegundoDesconto"] := nPerc2Desc
+				endif
+				if ValType(dData2Desc) == "D" .and. !Empty(dData2Desc)
+					oIncDesc["dataSegundoDesconto"] := StrTran(DtoC(dData2Desc), "/", ".")
+				endif
+
+				// 3º desconto
+				if ValType(nTipo3Desc) == "N"
+					oIncDesc["tipoTerceiroDesconto"] := nTipo3Desc
+				endif
+				if ValType(nVlr3Desc) == "N"
+					oIncDesc["valorTerceiroDesconto"] := nVlr3Desc
+				endif
+				if ValType(nPerc3Desc) == "N"
+					oIncDesc["percentualTerceiroDesconto"] := nPerc3Desc
+				endif
+				if ValType(dData3Desc) == "D" .and. !Empty(dData3Desc)
+					oIncDesc["dataTerceiroDesconto"] := StrTran(DtoC(dData3Desc), "/", ".")
+				endif
+
+				oJsonBB["desconto"] := oIncDesc
+			endif
+		endif
+
+		//=================================================================
+		// indicadorAlterarDesconto / alteracaoDesconto
+		//=================================================================
+		if !Empty(AllTrim(cIndAlterarDesc))
+			oJsonBB["indicadorAlterarDesconto"] := AllTrim(cIndAlterarDesc)
+
+			if Upper(AllTrim(cIndAlterarDesc)) == "S"
+				oAltDesc := JsonObject():New()
+
+				oAltDesc["tipoPrimeiroDesconto"]           := nTipo1Desc
+				oAltDesc["novoValorPrimeiroDesconto"]      := nVlr1Desc
+				oAltDesc["novoPercentualPrimeiroDesconto"] := nPerc1Desc
+				if ValType(dData1Desc) == "D" .and. !Empty(dData1Desc)
+					oAltDesc["novaDataLimitePrimeiroDesconto"] := StrTran(DtoC(dData1Desc), "/", ".")
+				endif
+
+				oAltDesc["tipoSegundoDesconto"]            := nTipo2Desc
+				oAltDesc["novoValorSegundoDesconto"]       := nVlr2Desc
+				oAltDesc["novoPercentualSegundoDesconto"]  := nPerc2Desc
+				if ValType(dData2Desc) == "D" .and. !Empty(dData2Desc)
+					oAltDesc["novaDataLimiteSegundoDesconto"] := StrTran(DtoC(dData2Desc), "/", ".")
+				endif
+
+				oAltDesc["tipoTerceiroDesconto"]           := nTipo3Desc
+				oAltDesc["novoValorTerceiroDesconto"]      := nVlr3Desc
+				oAltDesc["novoPercentualTerceiroDesconto"] := nPerc3Desc
+				if ValType(dData3Desc) == "D" .and. !Empty(dData3Desc)
+					oAltDesc["novaDataLimiteTerceiroDesconto"] := StrTran(DtoC(dData3Desc), "/", ".")
+				endif
+
+				oJsonBB["alteracaoDesconto"] := oAltDesc
+			endif
+		endif
+
+		//=================================================================
+		// indicadorAlterarDataDesconto / alteracaoDataDesconto
+		//=================================================================
+		if !Empty(AllTrim(cIndAlterarDataDesc))
+			oJsonBB["indicadorAlterarDataDesconto"] := AllTrim(cIndAlterarDataDesc)
+
+			if Upper(AllTrim(cIndAlterarDataDesc)) == "S"
+				oAltDataDesc := JsonObject():New()
+
+				if ValType(dNovaDataLim1Desc) == "D" .and. !Empty(dNovaDataLim1Desc)
+					oAltDataDesc["novaDataLimitePrimeiroDesconto"] := StrTran(DtoC(dNovaDataLim1Desc), "/", ".")
+				endif
+				if ValType(dNovaDataLim2Desc) == "D" .and. !Empty(dNovaDataLim2Desc)
+					oAltDataDesc["novaDataLimiteSegundoDesconto"]  := StrTran(DtoC(dNovaDataLim2Desc), "/", ".")
+				endif
+				if ValType(dNovaDataLim3Desc) == "D" .and. !Empty(dNovaDataLim3Desc)
+					oAltDataDesc["novaDataLimiteTerceiroDesconto"] := StrTran(DtoC(dNovaDataLim3Desc), "/", ".")
+				endif
+
+				oJsonBB["alteracaoDataDesconto"] := oAltDataDesc
+			endif
+		endif
+
+		//=================================================================
+		// indicadorProtestar / protesto
+		//=================================================================
+		if !Empty(AllTrim(cIndProtestar))
+			oJsonBB["indicadorProtestar"] := AllTrim(cIndProtestar)
+
+			if Upper(AllTrim(cIndProtestar)) == "S"
+				oProtesto := JsonObject():New()
+				oProtesto["quantidadeDiasProtesto"] := nQtdDiasProtesto
+				oJsonBB["protesto"] := oProtesto
+			endif
+		endif
+
+		// indicadorSustacaoProtesto
+		if !Empty(AllTrim(cIndSustarProtesto))
+			oJsonBB["indicadorSustacaoProtesto"] := AllTrim(cIndSustarProtesto)
+		endif
+
+		// indicadorCancelarProtesto
+		if !Empty(AllTrim(cIndCancelarProtesto))
+			oJsonBB["indicadorCancelarProtesto"] := AllTrim(cIndCancelarProtesto)
+		endif
+
+		//=================================================================
+		// indicadorIncluirAbatimento / abatimento
+		// indicadorAlterarAbatimento / alteracaoAbatimento
+		//=================================================================
+		if !Empty(AllTrim(cIndIncluirAbat))
+			oJsonBB["indicadorIncluirAbatimento"] := AllTrim(cIndIncluirAbat)
+
+			if Upper(AllTrim(cIndIncluirAbat)) == "S"
+				oInclAbat := JsonObject():New()
+				if ValType(nNovoValorAbatimento) == "N" .and. nNovoValorAbatimento > 0
+					oInclAbat["valorAbatimento"] := nNovoValorAbatimento
+				else
+					oInclAbat["valorAbatimento"] := nVlrAbat
+				endif
+				oJsonBB["abatimento"] := oInclAbat
+			endif
+		endif
+
+		if !Empty(AllTrim(cIndAlterarAbat))
+			oJsonBB["indicadorAlterarAbatimento"] := AllTrim(cIndAlterarAbat)
+
+			if Upper(AllTrim(cIndAlterarAbat)) == "S"
+				oAltAbat := JsonObject():New()
+				oAltAbat["novoValorAbatimento"] := nNovoValorAbatimento
+				oJsonBB["alteracaoAbatimento"] := oAltAbat
+			endif
+		endif
+
+		//=================================================================
+		// indicadorCobrarJuros / juros / indicadorDispensarJuros
+		//=================================================================
+		if !Empty(AllTrim(cIndCobrarJuros))
+			oJsonBB["indicadorCobrarJuros"] := AllTrim(cIndCobrarJuros)
+
+			if Upper(AllTrim(cIndCobrarJuros)) == "S"
+				oJuros := JsonObject():New()
+				oJuros["tipoJuros"]  := nTipoJuros
+				oJuros["valorJuros"] := nValorJuros
+				oJuros["taxaJuros"]  := nTaxaJuros
+				oJsonBB["juros"] := oJuros
+			endif
+		endif
+
+		if !Empty(AllTrim(cIndDispensarJuros))
+			oJsonBB["indicadorDispensarJuros"] := AllTrim(cIndDispensarJuros)
+		endif
+
+		//=================================================================
+		// indicadorCobrarMulta / multa / indicadorDispensarMulta
+		//=================================================================
+		if !Empty(AllTrim(cIndCobrarMulta))
+			oJsonBB["indicadorCobrarMulta"] := AllTrim(cIndCobrarMulta)
+
+			if Upper(AllTrim(cIndCobrarMulta)) == "S"
+				oMulta := JsonObject():New()
+				oMulta["tipoMulta"]  := nTipoMulta
+				oMulta["valorMulta"] := nValorMulta
+				if ValType(dDataInicioMulta) == "D" .and. !Empty(dDataInicioMulta)
+					oMulta["dataInicioMulta"] := StrTran(DtoC(dDataInicioMulta), "/", ".")
+				endif
+				oMulta["taxaMulta"] := nTaxaMulta
+				oJsonBB["multa"] := oMulta
+			endif
+		endif
+
+		if !Empty(AllTrim(cIndDispensarMulta))
+			oJsonBB["indicadorDispensarMulta"] := AllTrim(cIndDispensarMulta)
+		endif
+
+		//=================================================================
+		// indicadorNegativar / negativacao
+		//=================================================================
+		if !Empty(AllTrim(cIndNegativar))
+			oJsonBB["indicadorNegativar"] := AllTrim(cIndNegativar)
+
+			if Upper(AllTrim(cIndNegativar)) == "S"
+				oNegativacao := JsonObject():New()
+				oNegativacao["quantidadeDiasNegativacao"] := nQtdDiasNegativacao
+				oNegativacao["tipoNegativacao"]          := nTipoNegativacao
+				oNegativacao["orgaoNegativador"]         := nOrgaoNegativador
+				oJsonBB["negativacao"] := oNegativacao
+			endif
+		endif
+
+		//=================================================================
+		// indicadorAlterarSeuNumero / alteracaoSeuNumero
+		//=================================================================
+		if !Empty(AllTrim(cIndAlterarSeuNum))
+			oJsonBB["indicadorAlterarSeuNumero"] := AllTrim(cIndAlterarSeuNum)
+
+			if Upper(AllTrim(cIndAlterarSeuNum)) == "S"
+				oAltSeuNum := JsonObject():New()
+				oAltSeuNum["codigoSeuNumero"] := cSeuNumero
+				oJsonBB["alteracaoSeuNumero"] := oAltSeuNum
+			endif
+		endif
+
+		//=================================================================
+		// indicadorAlterarEnderecoPagador / alteracaoEndereco
+		//=================================================================
+		if !Empty(AllTrim(cIndAlterarEndPag))
+			oJsonBB["indicadorAlterarEnderecoPagador"] := AllTrim(cIndAlterarEndPag)
+
+			if Upper(AllTrim(cIndAlterarEndPag)) == "S"
+				oAltEndereco := JsonObject():New()
+				oAltEndereco["enderecoPagador"] := cEndPagador
+				oAltEndereco["bairroPagador"]   := cBairroPagador
+				oAltEndereco["cidadePagador"]   := cCidadePagador
+				oAltEndereco["UFPagador"]       := cUFPagador
+				oAltEndereco["CEPPagador"]      := nCEPPagador
+				oJsonBB["alteracaoEndereco"] := oAltEndereco
+			endif
+		endif
+
+		//=================================================================
+		// indicadorAlterarPrazoBoletoVencido / alteracaoPrazo
+		//=================================================================
+		if !Empty(AllTrim(cIndAlterarPrazoVenc))
+			oJsonBB["indicadorAlterarPrazoBoletoVencido"] := AllTrim(cIndAlterarPrazoVenc)
+
+			if Upper(AllTrim(cIndAlterarPrazoVenc)) == "S"
+				oAltPrazo := JsonObject():New()
+				oAltPrazo["quantidadeDiasAceite"] := nQtdDiasAceite
+				oJsonBB["alteracaoPrazo"] := oAltPrazo
+			endif
+		endif
+
+		//=================================================================
+		// ENVIO PARA A API BB
+		//=================================================================
+		cBody   := EncodeUTF8(oJsonBB:ToJson())
+		cResult := HTTPQuote(::cURL + cPath, "PATCH", "", cBody, 120, aClone(::aHeader), @cHeaderRet)
+
+		If !Empty(cResult)
+			FWJsonDeserialize(cResult, @oResponse)
+			If AttIsMemberOf(oResponse, "errors") .or. AttIsMemberOf(oResponse, "bbmsg")
+				::cResult := oResponse
+			Else
+				::cResult := oResponse
+				lRet := .T.
+			EndIf
+		Else
+			oResponse := JsonObject():New()
+			oResponse["errors"] := "Erro na comunicação com o Banco do Brasil."
+			::cResult := oResponse
+		EndIf
+	else
+
 		oResponse := JsonObject():New()
-		oResponse["errors"] := "Erro na comunicação com o Banco do Brasil."
+		oResponse["errors"] := "Título não localizado."
 		::cResult := oResponse
-	endif
+	EndIf
+
 	RestArea(aArea)
 Return lRet
 
@@ -950,7 +1447,7 @@ Gera token de autenticação para API Banco do Brasil
 @since 10/28/2025
 @return variant, Retorna o objeto JSON com o token gerado
 /*/
-method geratoken() class bancodobrasil
+method geratoken(codigoBanco, codigoAgencia, codigoConta) class bancodobrasil
 
 	Local cURL    := "https://oauth.bb.com.br/oauth/token"
 	local cPostParms as Character
@@ -958,7 +1455,20 @@ method geratoken() class bancodobrasil
 	local aHeadStr  :={}//as array
 	Local cBasic    := ::cAuthBasic
 	Local cResult 	:= ""
-
+	Local cFile As Character
+	Local cPath As Character
+	Local oFile As Object
+	Local jJson As Json
+	Local nExpiresIn  := 0
+	Local dBase    := CtoD("01/01/1970")
+	Local nDias    := Date() - dBase
+	Local nSegDia  := 0
+	Local nHora    := 0
+	Local nMin     := 0
+	Local nSeg     := 0
+	Local cHora := Time()
+	Local nAgoraUnix  := 0
+	Local nExpUnix    := 0
 	Aadd(aHeadStr, "Authorization: "+cBasic)
 	Aadd(aHeadStr, "Content-Type: application/x-www-form-urlencoded")
 
@@ -978,6 +1488,35 @@ method geratoken() class bancodobrasil
 	jJsonToken := JsonObject():New()
 	jJsonToken:FromJson(cResult)
 
+	cFile := 'bb_tkn_'+codigoBanco+codigoAgencia+codigoConta+'.json'
+	cPath := "\system\"
+
+	nExpiresIn := jJsonToken["expires_in"]
+
+	// cHora: "HH:MM:SS"
+	nHora := Val(SubStr(cHora,1,2))
+	nMin  := Val(SubStr(cHora,4,2))
+	nSeg  := Val(SubStr(cHora,7,2))
+	nSegDia := (nHora * 3600) + (nMin * 60) + nSeg
+	nAgoraUnix := (nDias * 86400) + nSegDia
+	nExpUnix   := nAgoraUnix + nExpiresIn - 60
+
+	oFile := FWFileWriter():New(cPath+cFile, .T.)
+	jJson := JsonObject():New()
+
+	jJson['token'] := jJsonToken['token_type']+space(1)+jJsonToken['access_token']
+	jJson['expires_at'] := nExpUnix
+
+	if !oFile:Exists()
+		oFile:Create()
+		oFile:Write(jJson:ToJson())
+		oFile:Close()
+	else
+		oFile:Erase()
+		oFile:Create()
+		oFile:Write(jJson:ToJson())
+		oFile:Close()
+	EndIf
 return (jJsonToken)
 
 /*/{Protheus.doc} xSomaAbat
@@ -1197,3 +1736,4 @@ Static Function Ws10GrBx(nRecnoSE1, nValBx, cBcoCNAB, cAgeCNAB, cCtaCNAB,dDatCre
 	Endif
 	RestArea(aAreaSE1)
 Return lRet
+

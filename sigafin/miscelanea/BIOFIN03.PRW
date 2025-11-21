@@ -1593,7 +1593,7 @@ User Function ImpBolBB(nOpc)
 
 		U_IntegBB(@oBancoBB,cBanco, cCodAge, cCodCta)
 
-		WHILE (cTMPSE1)->(!Eof())
+		WHILE (cTMPSE1)->(!Eof()) .and. !empty(oBancoBB)
 			if nOpc == 1
 
 				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .T./*gera BasePDF */,cPath, cFilePrint)
@@ -1696,9 +1696,7 @@ user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 
 	//(codigoAgencia as Character, codigoConta as Character, codigoConvenio as Character, numeroVariacaoCarteira as Character, codigoModalidade as Character, numeroCarteira as Character)
 	Local aArea      := GetArea()
-	Local cIdCliente := "eyJpZCI6ImY3YjgwMjUtOWViYi00YmUxLTk0IiwiY29kaWdvUHVibGljYWRvciI6MCwiY29kaWdvU29mdHdhcmUiOjc1MjE3LCJzZXF1ZW5jaWFsSW5zdGFsYWNhbyI6Mn0"
 	Local cURL       := "https://api.bb.com.br/cobrancas/v2"
-	Local cAppKey    := "61e42175360c102fb3abbee54097602b"
 	Local cCodCart   := ""
 	Local cCodConv   := ""
 	Local cCodVaria  := "19" //Número da variação da carteira
@@ -1708,15 +1706,35 @@ user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 	Local cRecParc   := "N" //Código para identificação da autorização de pagamento parcial do boleto. Domínios: S - SIM N - NÃO
 	Local cIndPIX	   := "S" //Código para informar se o boleto terá um QRCode Pix atrelado. Se informado caracter inválido, assumirá 'N'.Domínios: 'S' - QRCODE DINAMICO; 'N' - SEM PIX; OUTRO - SEM PIX
 	Local nJuros     := 0.00
-	Local cKeyClient := "eyJpZCI6IjQ0YTZmNGItMTcwYS00MGE5LTgxNmEtODIiLCJjb2RpZ29QdWJsaWNhZG9yIjowLCJjb2RpZ29Tb2Z0d2FyZSI6NzUyMTcsInNlcXVlbmNpYWxJbnN0YWxhY2FvIjoyLCJzZXF1ZW5jaWFsQ3JlZGVuY2lhbCI6MSwiYW1iaWVudGUiOiJwcm9kdWNhbyIsImlhdCI6MTcxODk5MzI0ODYxOH0"
-
+	Local oJsonBB    as Object
+	Local cResult    := ""
+	Local cJsonStr  := ""
+	Local cFile     := '\system\bb'+AllTrim(cCodBco)+AllTrim(cCodAge)+AllTrim(cCodCta)+'.json'
+	Local lRet      := .t.
 	DbSelectArea("SEE")
 	DbSetOrder(1)
 	DbSeek( xFilial("SEE") + PADR(cCodBco,TamSX3("EE_CODIGO")[1]) + PADR(cCodAge,TamSX3("EE_AGENCIA")[1]) + PADR(cCodCta,TamSX3("EE_CONTA")[1]) +  '001',  .T.)
 	cCodCart := Alltrim(SEE->EE_CODCART)
 	cCodConv := Alltrim(SEE->EE_CODEMP)
 	nJuros   := SEE->EE_XXTXJUR
-	oBancoBB := bancodobrasil():new( cCodBco, cCodAge, cCodCta, cCodConv,cCodVaria,cCodMod,cCodCart, cURL, cIdCliente, cKeyClient, cAppKey, cCodAceit, nTipTit, cRecParc, cIndPIX, nJuros)
+
+	oJsonBB := JsonObject():New()
+
+	cJsonStr := U_xReadFile(cFile)
+
+	cResult := oJsonBB:fromJson(cJsonStr)
+
+	if empty(cResult)
+		cIdCliente :=  oJsonBB:GetJSonobject('idClient')
+		cAppKey		 :=  oJsonBB:GetJSonobject('appKey')
+		cKeyClient :=  oJsonBB:GetJSonobject('clientSecret')
+	else
+		MsgStop("Erro ao ler o arquivo de configuração do Banco do Brasil. Verifique o arquivo: " + cFile, "Atenção!")
+		lRet := .F.
+	endif
+	if lRet
+		oBancoBB := bancodobrasil():new( cCodBco, cCodAge, cCodCta, cCodConv,cCodVaria,cCodMod,cCodCart, cURL, cIdCliente, cKeyClient, cAppKey, cCodAceit, nTipTit, cRecParc, cIndPIX, nJuros)
+	endif
 	RestArea(aArea)
 Return
 

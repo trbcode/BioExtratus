@@ -26,47 +26,22 @@ user function FA040ALT()
 	Local nVlrAbat    := SomaAbat(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,"R",1,,SE1->E1_CLIENTE,SE1->E1_LOJA)
 	Local nValorReal  := (SE1->E1_SALDO-nVlrAbat+ SE1->E1_ACRESC - SE1->E1_DECRESC)
 	Local cFilePrint  := ""
-	Local cArqBs64    := ""
-	Local nI
-	Local lEspera 	 := .t.
-	Local cPath 	   := GetTempPath() + "totvsprinter\"
 	Local oBancoBB    as object
 	Local oPrn        as object
 	Local lSucess 		:= .F.
+	Local dVencRea    := M->E1_VENCREA
+	Local cIndNovaDataVenc := "S"
 
 	if NOLDVENREA <> M->E1_VENCREA
 
 		if SE1->E1_PORTADO == "001" //Banco do Brasil
 			U_IntegBB(@oBancoBB, cBcoCNAB, cAgeCNAB, cCtaCNAB)
 
-			lSucess := oBancoBB:alteraboletos(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,SE1->E1_TIPO,M->E1_VENCREA)
+			lSucess := oBancoBB:alteraboletos(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,SE1->E1_TIPO, cIndNovaDataVenc, dVencRea)
 			IF lSucess
 				lSucess := oBancoBB:consultaBoleto(Alltrim(SE1->E1_NUMBCO))
 				IF lSucess
-					cFilePrint := "BOL_" + Alltrim(SE1->E1_PREFIXO)+"_" + Alltrim(SE1->E1_NUM) + Alltrim(SE1->E1_PARCELA) + Alltrim(SE1->E1_TIPO)  + "_" + AllTrim(SE1->E1_CLIENTE) + "_" + AllTrim(SE1->E1_LOJA)
-					oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
-					oPrn:SetViewPDF(.F.)
-					oBancoBB:imprimeboletos(SE1->E1_PREFIXO, SE1->E1_NUM, SE1->E1_PARCELA, SE1->E1_TIPO, oPrn)
-					oPrn:Print()
-					lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
-
-					while lEspera
-						sleep(500)
-						nI++
-						lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
-						if nI > 60
-							lEspera := .F.
-						endif
-					enddo
-
-					if nI <= 60
-						cArqBs64 := U_FileTo64(cPath + cFilePrint + ".pdf")
-						SE1->(DbSetorder(1))
-						SE1->(DbSeek( xFilial("SE1") + (cTMPSE1)->E1_PREFIXO + (cTMPSE1)->E1_NUM + (cTMPSE1)->E1_PARCELA + (cTMPSE1)->E1_TIPO ))
-						RecLock("SE1",.F.)
-						Replace SE1->E1_XXBOIMP  with "S"
-						SE1->(DbUnlock())
-					endif
+					FwAlertSuccess("Título Alterado com sucesso!", "F040ALT - BB")
 					FwFreeObj(oPrn)
 				ENDIF
 			ENDIF
