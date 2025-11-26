@@ -59,7 +59,7 @@ User Function BIOFIN03(cTpBol)
 	Private aRotina  	:= MenuDef()
 	Private lLogin      := Type("cEmpAnt") != "U"
 	Private cNoPrint := ""
-	private CTdos := ""
+	private CTdos    := ""
 	private cCodClie := ""
 	private oDlg1 as Object
 	private oSize  as Object
@@ -608,8 +608,11 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 				FWAlertSuccess("Processamento finalizado", "Integração Banco do Brasil")
 			Else
 				cResult := oBancoBB:cResult
-				FWJsonDeserialize(cResult,@oResultado)
-				FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + '', "Integração Banco do Brasil")
+				If AttIsMemberOf(cResult, "ERROS")
+					FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + Decodeutf8(cResult:ERROS[1]['MENSAGEM']), "Integração Banco do Brasil")
+				Else
+					FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + '', "Integração Banco do Brasil")
+				EndIf
 			Endif
 			return
 		Else
@@ -750,9 +753,9 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 		oPrn:Preview()
 	end if
 
-	cMarc := ""
-//oMark:MarkRec(.F.)
-	cMarc:=''
+	//cMarc := ""
+	oMark:MarkRec(.F.)
+	oMark:Refresh()
 	U_NOPRINT()
 
 Return Nil
@@ -1501,7 +1504,7 @@ Static function GetBancos()
 						AND EE_AGENCIA = A6_AGENCIA
 						AND EE_CONTA = A6_NUMCON
 					 WHERE SEE.D_E_L_E_T_ <> '*'
-					 AND SEE.EE_SUBCTA = '001'
+					 AND SEE.EE_XXINTBC = '1'
 	EndSql
 
 	While (cTMPSEE)->(!Eof())
@@ -1533,9 +1536,9 @@ static function setBanco()
 
 	Local cCodBkp := cCodBco
 	cCodBco := left(cCodBkp,3)
-	cCodAge := Substr(cCodBkp,7,4)
-	cCodCta := Alltrim(Substr(cCodBkp,16,10))
-	cNomeBco := Alltrim(Substr(cCodBkp,30,Len(cCodBkp)))
+	cCodAge := iif(!empty(Substr(cCodBkp,7,4)),Substr(cCodBkp,7,4),cCodAge)
+	cCodCta := iif(!empty(Substr(cCodBkp,16,10)),Substr(cCodBkp,16,10),cCodCta)
+	cNomeBco := iif(!empty(Substr(cCodBkp,30,Len(cCodBkp))),Substr(cCodBkp,30,Len(cCodBkp)),cNomeBco)
 
 	cBanco   := cCodBco
 	cAgencia := Padr(cCodAge, TamSX3("EE_AGENCIA")[1])
@@ -1701,7 +1704,7 @@ user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 	Local cCodConv   := ""
 	Local cCodVaria  := "19" //Número da variação da carteira
 	Local cCodMod	   := "1" //Domínio: 1 - Simples; 4 - Vinculada.
-	Local cCodAceit  := "A" //Código para identificar se o boleto de cobrança foi aceito (reconhecimento da dívida pelo Pagador). Domínio: A - Aceito; N - Não aceito
+	Local cCodAceit  := "N" //Código para identificar se o boleto de cobrança foi aceito (reconhecimento da dívida pelo Pagador). Domínio: A - Aceito; N - Não aceito
 	Local nTipTit		 := 2 //Duplicata Mercantil
 	Local cRecParc   := "N" //Código para identificação da autorização de pagamento parcial do boleto. Domínios: S - SIM N - NÃO
 	Local cIndPIX	   := "S" //Código para informar se o boleto terá um QRCode Pix atrelado. Se informado caracter inválido, assumirá 'N'.Domínios: 'S' - QRCODE DINAMICO; 'N' - SEM PIX; OUTRO - SEM PIX
@@ -1717,11 +1720,10 @@ user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 	cCodCart := Alltrim(SEE->EE_CODCART)
 	cCodConv := Alltrim(SEE->EE_CODEMP)
 	nJuros   := SEE->EE_XXTXJUR
+	cCodVaria := SUBSTR(SEE->EE_VARCART,2,2)
 
 	oJsonBB := JsonObject():New()
-
 	cJsonStr := U_xReadFile(cFile)
-
 	cResult := oJsonBB:fromJson(cJsonStr)
 
 	if empty(cResult)
