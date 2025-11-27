@@ -1574,6 +1574,7 @@ User Function ImpBolBB(nOpc)
 	Local lEspera	   := .T.
 	Local cPath 	   := GetTempPath() + "totvsprinter\"
 	Local nI         := 0
+	Local aMensagem  := {}
 
 	cMarc := substr(cMarc,1,Len(cMarc)-1) //Retira a virgula final
 
@@ -1596,10 +1597,15 @@ User Function ImpBolBB(nOpc)
 
 		U_IntegBB(@oBancoBB,cBanco, cCodAge, cCodCta)
 
+		dbSelectArea("SEE")
+		dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
+		dbSeek( XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
+		aMensagem := {Alltrim(SEE->EE_XXMENS1), Alltrim(SEE->EE_XXMENS2), Alltrim(SEE->EE_XXMENS3)}
+
 		WHILE (cTMPSE1)->(!Eof()) .and. !empty(oBancoBB)
 			if nOpc == 1
 
-				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .T./*gera BasePDF */,cPath, cFilePrint)
+				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .T./*gera BasePDF */,cPath, cFilePrint, aMensagem)
 
 			elseif nOpc == 2
 				lSucess :=oBancoBB:consultapix(Alltrim((cTMPSE1)->E1_NOSNUM))
@@ -1616,7 +1622,7 @@ User Function ImpBolBB(nOpc)
 				cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
 
 				oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
-				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .F./*gera BasePDF */,cPath, cFilePrint)
+				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .F./*gera BasePDF */,cPath, cFilePrint,aMensagem)
 				oPrn:SetViewPDF(.T.)
 				oPrn:Print()
 				lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")

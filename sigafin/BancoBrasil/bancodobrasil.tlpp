@@ -1089,9 +1089,13 @@ Imprime o boleto registrado no Banco do Brasil
 @param parcela, character, parcela do título
 @param tipo, character, tipo do título
 @param oBoleto, object, objeto boleto
+@param lGeraBase64, logical, indica se deve gerar o boleto em base64
+@param cPath, character, caminho para salvar o arquivo
+@param cFilePrint, character, nome do arquivo de impressão
+@param aMensagens, array, array com mensagens que serão impressas no boleto
 @return variant, não possui retorno
 /*/
-method imprimeboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, oBoleto as Object, lGeraBase64 as Logical, cPath as Character, cFilePrint as Character) class bancodobrasil
+method imprimeboletos(prefixo as Character, titulo as Character, parcela as Character, tipo as Character, oBoleto as Object, lGeraBase64 as Logical, cPath as Character, cFilePrint as Character, aMensagens as Array) class bancodobrasil
 
 	Local aArea       := GetArea()
 	Local nZ          := 0
@@ -1133,14 +1137,11 @@ method imprimeboletos(prefixo as Character, titulo as Character, parcela as Char
 	Private nJurosD	:= 0
 	Private aDadosTit   := {}
 	Private aDadosEmp   := {}
-	Private aBolText    := {}
+	//Private aMensagens    := {}
 	Private aDatSacado  := {}
 	Private aDadosBol   := {}
 	Private aDadosBanco := {}
-
-
 	Default lGeraBase64   := .F.
-
 
 	::cResult := JsonObject():New()
 
@@ -1156,7 +1157,6 @@ method imprimeboletos(prefixo as Character, titulo as Character, parcela as Char
 	cPrefix   := PadR(prefixo,TamSX3("E1_PREFIXO")[1])
 	cNumero   := PadR(titulo,TamSX3("E1_NUM")[1])
 	cChaveSA6 := PadR(cBcoCNAB,TamSX3("A6_COD")[1])+PadR(cAgeCNAB,TamSX3("A6_AGENCIA")[1])+PadR(cCtaCNAB,TamSX3("A6_NUMCON")[1])
-	aBolText    := { "", "", "" }
 
 	Default	cFilePrint := "BOL_"+Alltrim(SE1->E1_PREFIXO)+"_"+Alltrim(SE1->E1_NUM)+Alltrim(SE1->E1_PARCELA)+Alltrim(SE1->E1_TIPO)+"_"+AllTrim(SE1->E1_CLIENTE)+"_"+AllTrim(SE1->E1_LOJA)
 	Default cPath 	   := GetTempPath() + "totvsprinter\"
@@ -1347,9 +1347,9 @@ method imprimeboletos(prefixo as Character, titulo as Character, parcela as Char
 		oBoleto:Say  (nLin+0460,1810,"(-)Desconto/Abatimento"                         ,oFont8:oFont)
 		oBoleto:Say  (nLin+0460,100 ,"Instruções (Todas informações deste bloqueto são de exclusiva responsabilidade do Beneficiário)",oFont8:oFont)
 
-		oBoleto:Say  (nLin+550,130 ,IIF(!Empty(Alltrim(aBolText[1])),aBolText[1],"ENVIAR PARA CARTÓRIO 05 DIAS ÚTEIS APÓS O VENCIMENTO"),oFont10:oFont) //Incluido por Felipe Andrews
-		oBoleto:Say  (nLin+600,130 ,IIF(!Empty(Alltrim(aBolText[2])),aBolText[2],"COBRAR MORA DE R$ " + Alltrim(Transform((aDadosTit[5]*nJurosD/100),"@E 99,999,999.99")) + " AO DIA"),oFont10:oFont) //Incluido por Felipe Andrews
-		oBoleto:Say  (nLin+650,130 ,aBolText[3],oFont10:oFont)
+		oBoleto:Say  (nLin+550,130 ,IIF(!Empty(Alltrim(aMensagens[1])),aMensagens[1],"ENVIAR PARA CARTÓRIO 05 DIAS ÚTEIS APÓS O VENCIMENTO"),oFont10:oFont) //Incluido por Felipe Andrews
+		oBoleto:Say  (nLin+600,130 ,IIF(!Empty(Alltrim(aMensagens[2])),Alltrim(aMensagens[2]),"COBRAR MORA DE R$ " + Alltrim(Transform((aDadosTit[5] * ::jurosMora/30),"@E 99,999,999.99")) + " AO DIA"),oFont10:oFont) //Incluido por Felipe Andrews
+		oBoleto:Say  (nLin+650,130 ,aMensagens[3],oFont10:oFont)
 		oBoleto:Say  (nLin+700,130 ,"Endereço do Beneficiário: " + aDadosEmp[2],oFont10:oFont)
 		oBoleto:Say  (nLin+750,130 ,aDadosEmp[3] + "        " + aDadosEmp[4],oFont10:oFont)
 
