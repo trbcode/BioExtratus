@@ -1491,6 +1491,8 @@ method geratoken(codigoBanco, codigoAgencia, codigoConta) class bancodobrasil
 	cFile := 'bb_tkn_'+codigoBanco+codigoAgencia+codigoConta+'.json'
 	cPath := "\system\"
 
+	//if AttIsMemberOf(jJsonToken, "expires_in")
+
 	nExpiresIn := jJsonToken["expires_in"]
 
 	// cHora: "HH:MM:SS"
@@ -1500,6 +1502,8 @@ method geratoken(codigoBanco, codigoAgencia, codigoConta) class bancodobrasil
 	nSegDia := (nHora * 3600) + (nMin * 60) + nSeg
 	nAgoraUnix := (nDias * 86400) + nSegDia
 	nExpUnix   := nAgoraUnix + nExpiresIn - 60
+	//EndIf
+
 
 	oFile := FWFileWriter():New(cPath+cFile, .T.)
 	jJson := JsonObject():New()

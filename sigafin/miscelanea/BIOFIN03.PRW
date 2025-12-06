@@ -10,10 +10,9 @@
 //============================================================================//
 
 #Include "TopConn.ch"
-#include "totvs.ch"
+#include "protheus.ch"
 #INCLUDE 'FWMVCDEF.CH'
 #INCLUDE "RPTDEF.CH"
-
 
 /*/{Protheus.doc} BIOFIN03
 Geração de Boletos
@@ -58,7 +57,7 @@ User Function BIOFIN03(cTpBol)
 	Private cMarc    	:= ""     //Titulos marcados
 	Private aRotina  	:= MenuDef()
 	Private lLogin      := Type("cEmpAnt") != "U"
-	Private cNoPrint := ""
+	Private cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
 	private CTdos    := ""
 	private cCodClie := ""
 	private oDlg1 as Object
@@ -66,50 +65,15 @@ User Function BIOFIN03(cTpBol)
 	private cBanco   := ""
 	private cAgencia := ""
 	private cConta   := ""
+	private cTodos   := ""
+	private cFilBB   := ""
 
 	If !lLogin
 		RpcSetEnv("01","01","Admin")
 	EndIf
 
-	if empty(aRelBco)
-		GetBancos()
-		cBanco   := cCodBco
-		cAgencia := Padr(cCodAge, TamSX3("EE_AGENCIA")[1])
-		cConta   := Padr(cCodCta, TamSX3("EE_CONTA"	 )[1])
+	GetBancos()
 
-		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
-		cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
-		cFilBB   := "E1_XXGRBOL <>'2' .AND. E1_PORTADO == '001' .AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
-	endif
-
-	if empty(aRelBco)
-		if alltrim(cTipo) ==''
-			cTipo := 'BIO'
-		endif
-		IF cTipo == 'BIO'
-			cBanco   := "756"
-			cAgencia := "4108 "
-			cConta   := "8429      "
-			cCodClie := "e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
-			cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO = 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
-			cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO = 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
-		ELSEIF cTipo == 'FUP'
-			cBanco   := GetMV("MV_XXFUPBA")
-			cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
-			cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
-			cCodClie := "5ed00c38-279b-4979-aa91-f8d0cf003b40"
-			cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
-			cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
-
-		ELSEIF cTipo == 'FUPCHK'
-			cBanco   := GetMV("MV_XXFCHBA")
-			cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
-			cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
-			cCodClie := "fa7c41d6-6b16-4c3e-9a14-df89f799ff7d"
-			cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
-			cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
-		ENDIF
-	endif
 	//Defino o tamanho dos componentes através do método FwDefSize(), amarrando ao objeto oDlg
 	oSize := FwDefSize():New(.T.)
 
@@ -164,7 +128,7 @@ User Function BIOFIN03(cTpBol)
 	//Define a legenda
 	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) <>  'S' .AND. ALLTRIM(E1_NOSNUM)=='' ", "GREEN"	,  "Não Impresso")
 	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) ==  'S' .AND. ALLTRIM(E1_NOSNUM)<>'' ", "BLACK"	,  "Impresso e Enviado ao Banco")
-
+	oMark:AddLegend("ALLTRIM(E1_XXBOIMP) <>  'S' .AND. ALLTRIM(E1_NOSNUM)<>'' ", "WHITE"	,  "Não Impresso e Enviado ao Banco")
 	//Define os títulos que estão marcados
 	bAfterMark := { || markBol()}
 	oMark:SetAfterMark(bAfterMark)
@@ -198,17 +162,16 @@ Static Function MenuDef()
 
 
 	ADD OPTION aRotina TITLE 'Verificar NCC'   	ACTION 'U_VerNCC()'     OPERATION 3 ACCESS 0
-	ADD OPTION aRotina TITLE 'Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie, .F.  )'    OPERATION 2 ACCESS 0
-	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cBanco,  cAgencia, cConta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
+	ADD OPTION aRotina TITLE 'Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .F.  )'    OPERATION 2 ACCESS 0
+	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
 	ADD OPTION aRotina TITLE 'Imprime Boleto BB'	ACTION 'U_ImpBolBB(1)'   OPERATION 1 ACCESS 0// */
 
 	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
-
 	ADD OPTION aSubMnu TITLE 'Todos'        	ACTION 'U_BOLTODOS()'   OPERATION 3 ACCESS 0
 	ADD OPTION aSubMnu TITLE 'Não enviados ao Banco'	ACTION 'U_NOPRINT()'     OPERATION 3 ACCESS 0
-	ADD OPTION aSubMnu TITLE 'Banco do Brasil'	ACTION 'U_FILTBB()'   OPERATION 1 ACCESS 0
+
 Return aRotina
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 /*/{Protheus.doc} markBol
@@ -256,6 +219,7 @@ description
 @return variant, return_description
 /*/
 User Function BOLTODOS()
+	Local cTodos := "E1_NATUREZ <> '1020003'.AND. E1_TIPO == 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '20240918' .AND.((E1_PORTADO == ' '  .AND. E1_CONTA == ' ') .OR. (E1_PORTADO == '"+LEFT(cCodBco,3)+"' .AND. E1_CONTA == '"+alltrim(cCodCta)+"'))"
 	cMarc := ""
 	oMark:CleanFilter()
 	oMark:SetFilterDefault(cTodos)
@@ -302,9 +266,9 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	private cPerg2	:= "BIOFIN03"
 	private cFilePrint := ""
 	private oBancoBB as Object
-
-	if cCodBco == "001"
-		U_IntegBB(@oBancoBB,cCodBco, cCodAge, cCodCta)
+	cBanco := left(alltrim(cBanco),3)
+	if left(alltrim(cCodBco),3) == "001"
+		U_IntegBB(@oBancoBB,cBanco, cCodAge, cCodCta)
 	endif
 
 	IF SE1->E1_XXBOIMP <> 'S' .AND. SM0->M0_CODIGO == '01'
@@ -366,7 +330,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	//Buscando parâmetros de banco  e atualizando o array de bancos
 	dbSelectArea("SEE")
 	dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
-	dbSeek(         XFILIAL('SEE')	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
+	SEE->(dbSeek(XFILIAL('SEE')	+ cBanco + Padr(Alltrim(cAgencia),TamSX3("EE_AGENCIA")[1]) + Padr(Alltrim(cConta),TamSX3("EE_CONTA")[1])   +  '001'))
 
 	If SEE->(Eof())
 		Alert("As configurações de banco que você selecionou não foram encontradas na tabela de parâmetros de banco (SEE) - ";
@@ -1236,7 +1200,9 @@ User Function BOLCANC(cCodClie)
 		cUpd += "		E1_MOVIMEN  = '',	" /* Data da movimentação	*/
 		cUpd += "		E1_OK       = '',	" /* Limpa a marca da seleção	*/
 		cUpd += "		E1_IDCNAB   = '', 	" /* ID CNAB */
-		cUpd += "		E1_XQRCODE   = '' 	" /* QRCODE */
+		cUpd += "		E1_XQRCODE   = '', 	" /* QRCODE */
+		cUpd += "		E1_CODBAR   = '', 	" /* Código de Barra */
+		cUpd += "		E1_CODDIG   = ''  	" /* Linha Digitável */
 		cUpd += "	WHERE E1_FILIAL = '" + xFilial("SE1") 		+ "'"
 		cUpd += "		AND E1_CLIENTE = '" + QRY1->E1_CLIENTE	+ "'"
 		cUpd += "		AND E1_LOJA = '" 	+ QRY1->E1_LOJA 	+ "'"
@@ -1343,6 +1309,11 @@ User Function BOLCANC(cCodClie)
 					else
 						MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao BANCO DO BRASIL . Comunique a Equipe Protheus!", "ATENCAO!")
 					endif
+				Else
+					cMsg := '<font color="#0F0F00" size="4">Cancelamento da cobrança do título '+ cValtoChar(val(strtran(SE1->E1_NOSNUM,"-",""))) +',  realizado com sucesso!</font>'
+					cMsg += '<br>'
+					cMsg += '<font color="#AD2121" size="4"></font>'
+					FWAlertSucess(cMsg, "Retorno Banco do Brasil-BIOFIN03")
 				EndIf
 			endif
 			if lRet
@@ -1520,10 +1491,42 @@ Static function GetBancos()
 
 		aadd(aRelBco, Alltrim(EE_CODIGO) +" - "+ Padr(Alltrim((cTMPSEE)->EE_AGENCIA),TamSX3("EE_AGENCIA")[1]) + Padr(Alltrim((cTMPSEE)->EE_DVAGE),TamSX3("EE_DVAGE")[1]) + " - "+ Padr(Alltrim((cTMPSEE)->EE_CONTA),TamSX3("EE_CONTA")[1]) +  Padr(Alltrim((cTMPSEE)->EE_DVCTA),TamSX3("EE_DVCTA")[1]) + " - " + Padr(Alltrim((cTMPSEE)->A6_NOME),TamSX3("A6_NOME")[1]) )
 		(cTMPSEE)->(DbSkip())
-
 	EndDo
+
 	(cTMPSEE)->(DbCloseArea())
 Return
+
+/*/{Protheus.doc} GetFilter
+description
+@type function
+@version  
+@author iglal
+@since 12/5/2025
+@param cCodBco, character, param_description
+@return variant, return_description
+/*/
+Static function GetFilter(cCodBco)
+
+	if left(AllTrim(cCodBco),3) == "001"
+		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+		cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO == 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+		cFilBB   := "E1_XXGRBOL <>'2' .AND. E1_PORTADO == '001' .AND. E1_TIPO == 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+	Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr("8429", TamSX3("EE_CONTA")[1])
+		cCodClie := "0735841c-a2c7-411d-96e3-5361c5090d77"
+		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_NATUREZ <> '1020003'.AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'NF'	.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+		cTodos	 := "E1_NATUREZ <> '1020003'.AND. E1_TIPO == 'NF'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "'"
+	Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
+		cCodClie := "d82e28ee-a646-421f-977c-4e6dfc57727f"
+		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
+		cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'"
+	Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
+		cCodClie := "5c686c4b-270d-41ca-b8f3-8145713c0d33"
+		cNoPrint := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_XXBOIMP <> 'S'.AND.  E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' "
+		cTodos	 := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO = 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C'"
+	EndIf
+
+Return
+
 /*/{Protheus.doc} setBanco
 description
 @type function
@@ -1544,12 +1547,14 @@ static function setBanco()
 	cAgencia := Padr(cCodAge, TamSX3("EE_AGENCIA")[1])
 	cConta   := Padr(cCodCta, TamSX3("EE_CONTA"	 )[1])
 
+	GetFilter(cCodBco)
 
 	oCodBco:Refresh()
 	oCodAge:Refresh()
 	oCodCta:Refresh()
 	oNomeBco:Refresh()
-
+	oMark:SetFilterDefault(cNoPrint)
+	oMark:Refresh()
 return
 
 
@@ -1575,7 +1580,7 @@ User Function ImpBolBB(nOpc)
 	Local cPath 	   := GetTempPath() + "totvsprinter\"
 	Local nI         := 0
 	Local aMensagem  := {}
-
+	Local cBanco     := Left(cCodBco,3)
 	cMarc := substr(cMarc,1,Len(cMarc)-1) //Retira a virgula final
 
 	IF !Empty(cMarc)
@@ -1599,7 +1604,7 @@ User Function ImpBolBB(nOpc)
 
 		dbSelectArea("SEE")
 		dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
-		dbSeek( XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
+		DbSeek( xFilial("SEE") + PADR(cBanco,TamSX3("EE_CODIGO")[1]) + PADR(cCodAge,TamSX3("EE_AGENCIA")[1]) + PADR(cCodCta,TamSX3("EE_CONTA")[1]) +  '001')
 		aMensagem := {Alltrim(SEE->EE_XXMENS1), Alltrim(SEE->EE_XXMENS2), Alltrim(SEE->EE_XXMENS3)}
 
 		WHILE (cTMPSE1)->(!Eof()) .and. !empty(oBancoBB)
@@ -1651,12 +1656,13 @@ User Function ImpBolBB(nOpc)
 		EndDo
 		(cTMPSE1)->(DbCloseArea())
 	ENDIF
-	U_FILTBB()
 	oCodBco:Refresh()
 	oCodAge:Refresh()
 	oCodCta:Refresh()
 	oNomeBco:Refresh()
+	oMark:MarkRec(.F.)
 	oMark:Refresh()
+	U_NOPRINT()
 	RestArea(aArea)
 Return Nil
 
@@ -1718,7 +1724,7 @@ user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 	Local oJsonBB    as Object
 	Local cResult    := ""
 	Local cJsonStr  := ""
-	Local cFile     := '\system\bb'+AllTrim(cCodBco)+AllTrim(cCodAge)+AllTrim(cCodCta)+'.json'
+	Local cFile     := '\system\bb'+left(AllTrim(cCodBco),3)+AllTrim(cCodAge)+AllTrim(cCodCta)+'.json'
 	Local lRet      := .t.
 	DbSelectArea("SEE")
 	DbSetOrder(1)
@@ -1746,10 +1752,3 @@ user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 	RestArea(aArea)
 Return
 
-User Function FILTBB()
-	cMarc := ""
-	oMark:CleanFilter()
-	oMark:SetFilterDefault(cFilBB)
-	oMark:Refresh()
-
-Return Nil
