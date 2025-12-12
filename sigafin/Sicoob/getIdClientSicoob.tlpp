@@ -1,0 +1,29 @@
+#Include "protheus.ch"
+/*/{Protheus.doc} getIdClientSicoob
+Retorna o IdClient do banco que está no Json
+@type function
+@version 1.0
+@author Igor Guimaraes
+@since 12/9/2025
+@param Banco, character, param_description
+@param Agencia, character, param_description
+@param Conta, character, param_description
+@return character, IdClient do banco
+/*/
+User Function getIdClientSicoob(Banco as Character, Agencia as Character, Conta as Character) as Character
+
+	Local oJsonBB    as Object
+	Local cIdClient  := ""
+	Local cFile      := '\system\sb'+left(AllTrim(Banco),3)+AllTrim(Agencia)+AllTrim(Conta)+'.json'
+	Local cJsonStr   := ""
+	Local cResult    := ""
+
+	oJsonBB := JsonObject():New()
+	cJsonStr := U_xReadFile(cFile)
+	cResult := oJsonBB:fromJson(cJsonStr)
+
+	if empty(cResult)
+		cIdClient :=  oJsonBB:GetJSonobject('idClient')
+	endif
+
+Return cIdClient

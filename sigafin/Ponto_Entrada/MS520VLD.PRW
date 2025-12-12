@@ -115,7 +115,8 @@ User Function MS520VLD()
 			Aadd(aDados,cNosso)
 
 			If cCodBco == "756"
-				lRet := U_BEWS0002("EXC",,,,,,aDados,,,)//sicoob
+				cCodClie := u_getIdClientSicoob(alltrim(cCodBco), alltrim(cCodAge), alltrim(cCodCta))
+				lRet := U_BEWS0002("EXC",,,,,,aDados, , , , cCodClie)//sicoob
 			elseif cCodBco == "001"
 				U_IntegBB(@oBancoBB,cCodBco, cCodAge, cCodCta)
 				lRet := oBancoBB:excluiBoletos(Alltrim(cNosso))

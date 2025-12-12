@@ -55,9 +55,6 @@ User Function AltDtLim()
             ORDER BY E1_VENCREA ASC
 	EndSql
 
-
-
-
 	while (cTMPSE1)->(!Eof())
 
 		dbSelectArea("SEE")
@@ -66,15 +63,14 @@ User Function AltDtLim()
 
 		//BIO
 		IF ALLTRIM((cTMPSE1)->E1_CONTA) == '8429'
-			cCodClie := "e24ab947-b2b6-4c55-86fb-2662a014a63b"
+			cCodClie := u_getIdClientSicoob(alltrim((cTMPSE1)->E1_PORTADO), alltrim((cTMPSE1)->E1_AGEDEP), alltrim((cTMPSE1)->E1_CONTA)) //"e24ab947-b2b6-4c55-86fb-2662a014a63b"
 			// FUP
 		ELSEIF ALLTRIM((cTMPSE1)->E1_CONTA) == '16068'
-			cCodClie := "28477a68-ed9d-43a6-8e97-9a161917e7ca"
+			cCodClie := u_getIdClientSicoob(alltrim((cTMPSE1)->E1_PORTADO), alltrim((cTMPSE1)->E1_AGEDEP), alltrim((cTMPSE1)->E1_CONTA)) //"28477a68-ed9d-43a6-8e97-9a161917e7ca"
 			//FUPCHIK
 		ELSEIF ALLTRIM((cTMPSE1)->E1_CONTA) == '39380'
-			cCodClie := "b7e6001d-1131-4687-a8b5-c7262f146f89"
+			cCodClie := u_getIdClientSicoob(alltrim((cTMPSE1)->E1_PORTADO), alltrim((cTMPSE1)->E1_AGEDEP), alltrim((cTMPSE1)->E1_CONTA)) //"b7e6001d-1131-4687-a8b5-c7262f146f89"
 		ENDIF
-
 
 		aBancos[nPOS][5]     := alltrim(SEE->EE_DVAGE)
 		aBancos[nPOS][6]    :=  alltrim(SEE->EE_DVCTA)
@@ -114,7 +110,7 @@ Return lRet
 
 Static Function setBanc()
 
-	// DEFINE PARÂMETROS DE CADA BANCO POSSÍVEL (9)
+	// DEFINE PARÂMETROS DE CADA BANCO POSSÝVEL (9)
 	// Vide documentação
 
 

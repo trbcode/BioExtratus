@@ -6,30 +6,7 @@
 	"permissions": {
 		"authorizationtoken": ""
 	},
-	"connectedServer": {
-		"id": "li5b5y3k3ddmhficeyt79sumw51n39",
-		"type": "totvs_server_protheus",
-		"name": "BioExtratus - TESTEHOM",
-		"port": 61234,
-		"address": "192.168.101.237",
-		"buildVersion": "7.00.240223P",
-		"secure": true,
-		"includes": [
-			"D:\\Clientes\\Poupex\\protheus\\INCLUDE"
-		],
-		"environments": [
-			"TESTEHOM"
-		],
-		"username": "trbcode",
-		"environment": "TESTEHOM",
-		"token": "djM6bGk1YjV5M2szZGRtaGZpY2V5dDc5c3VtdzUxbjM5OjE6MTkyLjE2OC4xMDEuMjM3OjYxMjM0OjE6Ny4wMC4yNDAyMjNQOjM=:djE6VEVTVEVIT006dHJiY29kZTpLNXhaUStXME56SmsyZWlzWHJVLzZoVk5RbDBCMitaVWEycGkyaWNIb1pnPQ==|djI6MTc2NDk1NjI0MTowOjE6MQ==.AoMF89jDAdTHoZBbwtRd2ge3nw1uTKgOIScBQmYY/VJavN5aOvKV+Y+asFfK0xP+Lk6UJA0U1xR0BGQugAQN+j6bNGYjyo00dsCduiSmEofuxuKIIDK9G5vieMG1DMlBJVaebWMEkeDkC/gA1ZT6L+hBw7x/QMO6JY2cwOxg0r/Z15sJMWGRi5dXUMGwqDQP72u4FOnfRjDEE4d9RaZt9aOVA6Yw3yY9woIu1BGI8DRO+1L19cpGqLC+GT9+Iej1DO1kWsCnvzDnkuJXlZJmZVcujaItuQw8tcKQxYw84tQf1LUdMGMOMVvqvqnj1qWuNyzqldadBNuUNHkqKW6sYA==",
-		"informations": {
-			"permissions": [],
-			"errorMessage": "",
-			"environmentDetectedType": "totvs_server_protheus",
-			"serverDetectedType": "totvs_server_protheus"
-		}
-	},
+	"connectedServer": {},
 	"configurations": [
 		{
 			"id": "2brw31gff5l3u21ylry7drsbei94q",
@@ -640,14 +617,14 @@
 			"buildVersion": "7.00.240223P",
 			"secure": true,
 			"includes": [
-				"D:\\Clientes\\Poupex\\protheus\\INCLUDE"
+				"D:\\Clientes\\Bio Extratus\\BioExtratus\\include"
 			],
 			"environments": [
 				"TESTEHOM"
 			],
 			"username": "trbcode",
 			"environment": "TESTEHOM",
-			"token": "djM6bGk1YjV5M2szZGRtaGZpY2V5dDc5c3VtdzUxbjM5OjE6MTkyLjE2OC4xMDEuMjM3OjYxMjM0OjE6Ny4wMC4yNDAyMjNQOjM=:djE6VEVTVEVIT006dHJiY29kZTpLNXhaUStXME56SmsyZWlzWHJVLzZoVk5RbDBCMitaVWEycGkyaWNIb1pnPQ==|djI6MTc2NDk1NjI0MTowOjE6MQ==.AoMF89jDAdTHoZBbwtRd2ge3nw1uTKgOIScBQmYY/VJavN5aOvKV+Y+asFfK0xP+Lk6UJA0U1xR0BGQugAQN+j6bNGYjyo00dsCduiSmEofuxuKIIDK9G5vieMG1DMlBJVaebWMEkeDkC/gA1ZT6L+hBw7x/QMO6JY2cwOxg0r/Z15sJMWGRi5dXUMGwqDQP72u4FOnfRjDEE4d9RaZt9aOVA6Yw3yY9woIu1BGI8DRO+1L19cpGqLC+GT9+Iej1DO1kWsCnvzDnkuJXlZJmZVcujaItuQw8tcKQxYw84tQf1LUdMGMOMVvqvqnj1qWuNyzqldadBNuUNHkqKW6sYA==",
+			"token": "djM6bGk1YjV5M2szZGRtaGZpY2V5dDc5c3VtdzUxbjM5OjE6MTkyLjE2OC4xMDEuMjM3OjYxMjM0OjE6Ny4wMC4yNDAyMjNQOjM=:djE6VEVTVEVIT006dHJiY29kZTp6UnBJRldUN2R0NVdpQnF5VUZIUUliUUNYRUx2Tm5wREFMTk9ZM3BreUd3PQ==|djI6MTc2NTQ4ODY4NTowOjE6MQ==.Gnzq5y2c88IDXxGsKKFycBfz/H+07oiVvbG9WONhYGRdjg9yiABlQvgUbH9NLhQe862MsKa1uNNql0wrLxZ8KdQ8hVdv3shsWPzbjnPlGsB1mllpe/Zc5TWbmK+jBxjRXGmhOxh569xsYf21CEXVexIzXZF24oBSfBMISV/4FLq9Kho/Q7HcG73zYPxo5eTKP43hoA8hItESlgTOAfKHScG13URGUhuCZLtB3BR1819IYkzkbG0jpBLaEpUoIYawGb9w5MkLXU0jIHi7VsyDduWp4OC3Q2krc9/ZVzz1YssaQg9O6Co0YptBJUcFV1RymjCjFzydzOuuivyhNE7mqQ==",
 			"informations": {
 				"permissions": [],
 				"errorMessage": "",
@@ -1172,7 +1149,7 @@
 			"li5b5y3k3ddmhficeyt79sumw51n39:TESTEHOM",
 			{
 				"id": "li5b5y3k3ddmhficeyt79sumw51n39",
-				"token": "djM6bGk1YjV5M2szZGRtaGZpY2V5dDc5c3VtdzUxbjM5OjE6MTkyLjE2OC4xMDEuMjM3OjYxMjM0OjE6Ny4wMC4yNDAyMjNQOjM=:djE6VEVTVEVIT006dHJiY29kZTpLNXhaUStXME56SmsyZWlzWHJVLzZoVk5RbDBCMitaVWEycGkyaWNIb1pnPQ==|djI6MTc2NDk1NjI0MTowOjE6MQ==.AoMF89jDAdTHoZBbwtRd2ge3nw1uTKgOIScBQmYY/VJavN5aOvKV+Y+asFfK0xP+Lk6UJA0U1xR0BGQugAQN+j6bNGYjyo00dsCduiSmEofuxuKIIDK9G5vieMG1DMlBJVaebWMEkeDkC/gA1ZT6L+hBw7x/QMO6JY2cwOxg0r/Z15sJMWGRi5dXUMGwqDQP72u4FOnfRjDEE4d9RaZt9aOVA6Yw3yY9woIu1BGI8DRO+1L19cpGqLC+GT9+Iej1DO1kWsCnvzDnkuJXlZJmZVcujaItuQw8tcKQxYw84tQf1LUdMGMOMVvqvqnj1qWuNyzqldadBNuUNHkqKW6sYA=="
+				"token": "djM6bGk1YjV5M2szZGRtaGZpY2V5dDc5c3VtdzUxbjM5OjE6MTkyLjE2OC4xMDEuMjM3OjYxMjM0OjE6Ny4wMC4yNDAyMjNQOjM=:djE6VEVTVEVIT006dHJiY29kZTp6UnBJRldUN2R0NVdpQnF5VUZIUUliUUNYRUx2Tm5wREFMTk9ZM3BreUd3PQ==|djI6MTc2NTQ4ODY4NTowOjE6MQ==.Gnzq5y2c88IDXxGsKKFycBfz/H+07oiVvbG9WONhYGRdjg9yiABlQvgUbH9NLhQe862MsKa1uNNql0wrLxZ8KdQ8hVdv3shsWPzbjnPlGsB1mllpe/Zc5TWbmK+jBxjRXGmhOxh569xsYf21CEXVexIzXZF24oBSfBMISV/4FLq9Kho/Q7HcG73zYPxo5eTKP43hoA8hItESlgTOAfKHScG13URGUhuCZLtB3BR1819IYkzkbG0jpBLaEpUoIYawGb9w5MkLXU0jIHi7VsyDduWp4OC3Q2krc9/ZVzz1YssaQg9O6Co0YptBJUcFV1RymjCjFzydzOuuivyhNE7mqQ=="
 			}
 		]
 	],

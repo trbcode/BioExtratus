@@ -1,6 +1,6 @@
 
 #Include "TopConn.ch"
-#include "totvs.ch"
+#include "protheus.ch"
 #INCLUDE "RPTDEF.CH"
 #INCLUDE "FWPrintSetup.ch"
 /*/{Protheus.doc} F040ALT
@@ -22,7 +22,7 @@ user function FA040ALT()
 	Local cAgeCNAB    := SE1->E1_AGEDEP
 	Local cCtaCNAB    := SE1->E1_CONTA
 	Local nPOS        := 1
-	Local cCodClie    := "e24ab947-b2b6-4c55-86fb-2662a014a63b" // o ideal � criar um campo na tabela SEE para guardar o Id_client
+	Local cIDClient    := "" // o ideal � criar um campo na tabela SEE para guardar o Id_client 0735841c-a2c7-411d-96e3-5361c5090d77
 	Local nVlrAbat    := SomaAbat(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,"R",1,,SE1->E1_CLIENTE,SE1->E1_LOJA)
 	Local nValorReal  := (SE1->E1_SALDO-nVlrAbat+ SE1->E1_ACRESC - SE1->E1_DECRESC)
 	Local cFilePrint  := ""
@@ -47,6 +47,8 @@ user function FA040ALT()
 			ENDIF
 
 		elseif SE1->E1_PORTADO == "756" //Sicoob
+
+			cIDClient := u_getIdClientSicoob(alltrim(cBcoCNAB), alltrim(cAgeCNAB), alltrim(cCtaCNAB))
 
 			AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
 			//Buscando par�metros de banco  e atualizando o array de bancos
@@ -88,7 +90,7 @@ user function FA040ALT()
 			SE1->(Recno()) }                                                   // [9] Recno                                                    // [8] Tipo do Titulo
 
 
-			IF U_BEWS0002("ALT",,aDadosTit,aBancos,nPOS,,,@aDados,,,,cCodClie,STRTRAN(alltrim(SE1->E1_NOSNUM),"-",""))
+			IF U_BEWS0002("ALT",,aDadosTit,aBancos,nPOS,,,@aDados,,,,cIDClient,STRTRAN(alltrim(SE1->E1_NOSNUM),"-",""))
 
 				dbSelectArea("SA1")
 				dbSetOrder(1)  // A1_FILIAL   +A1_COD          +A1_LOJA
