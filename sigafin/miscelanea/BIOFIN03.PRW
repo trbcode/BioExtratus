@@ -13,6 +13,9 @@
 #include "protheus.ch"
 #INCLUDE 'FWMVCDEF.CH'
 #INCLUDE "RPTDEF.CH"
+#INCLUDE "PRTOPDEF.ch"
+#Include 'TbiConn.CH'
+#INCLUDE "FWPrintSetup.ch"
 
 /*/{Protheus.doc} BIOFIN03
 Geração de Boletos
@@ -1590,15 +1593,11 @@ User Function ImpBolBB(nOpc)
 	Local _cCodfil   := xFilial("SE1")
 	Local _cFiltro   := ""
 	Local cArqBs64   := ""
-	Local lEspera	   := .T.
-	Local cPath 	   := "C:\TEMP\"
+	Local lEspera	 := .T.
+	Local cPath 	 := GetTempPath() + "totvsprinter\"
 	Local nI         := 0
 	Local aMensagem  := {}
 	Local cBanco     := Left(cCodBco,3)
-
-	If !ExistDir(cPath)
-		MakeDir(cPath)
-	EndIf
 
 	If Len(cMarc) > 0
 		If  SUBSTR(cMarc,len(cMarc),Len(cMarc)-1) == ","
