@@ -1652,7 +1652,7 @@ User Function ImpBolBB(nOpc)
 
 				cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
 
-				oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
+				oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,cPath,.T.)
 				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, @oPrn, .F./*gera BasePDF */,cPath, cFilePrint,aMensagem)
 				oPrn:SetViewPDF(.T.)
 				oPrn:Print()
