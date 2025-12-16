@@ -104,11 +104,11 @@ User Function BIOFIN03(cTpBol)
 	@ a1stRow[1], a1stRow[2] + 005 Say "Banco:" FONT oFont25 PIXEL Of oDlg1
 	@ a1stRow[1]-3, a1stRow[2] + 040 MSCOMBOBOX oCodBco VAR cCodBco ITEMS aRelBco SIZE 030, 20 FONT oFont20 PIXEL Of oDlg1 Valid setBanco()
 	@ a1stRow[1], a1stRow[2] + 120 Say "Agência:" FONT oFont25 PIXEL Of oDlg1
-	@ a1stRow[1]+3, a1stRow[2] + 170 Say oCodAge VAR cCodAge Picture PesqPict("SEE","EE_AGENCIA") SIZE 50,10 FONT oFont20 PIXEL of oDlg1
+	@ a1stRow[1]+2, a1stRow[2] + 170 Say oCodAge VAR cCodAge Picture PesqPict("SEE","EE_AGENCIA") SIZE 50,10 FONT oFont20 PIXEL of oDlg1
 	@ a1stRow[1], a1stRow[2] + 230 Say "Conta:" FONT oFont25 PIXEL Of oDlg1
-	@ a1stRow[1]+3, a1stRow[2] + 270 Say oCodCta VAR cCodCta Picture PesqPict("SEE","EE_CONTA") SIZE 70,10 FONT oFont20 PIXEL of oDlg1
+	@ a1stRow[1]+2, a1stRow[2] + 270 Say oCodCta VAR cCodCta Picture PesqPict("SEE","EE_CONTA") SIZE 70,10 FONT oFont20 PIXEL of oDlg1
 	@ a1stRow[1], a1stRow[2] + 340 Say "Nome:" FONT oFont25 PIXEL Of oDlg1
-	@ a1stRow[1]+3, a1stRow[2] + 380 Say oNomeBco VAR cNomeBco Picture PesqPict("SA6","A6_NOME") SIZE 250,10 FONT oFont20 PIXEL of oDlg1
+	@ a1stRow[1]+2, a1stRow[2] + 380 Say oNomeBco VAR cNomeBco Picture PesqPict("SA6","A6_NOME") SIZE 250,10 FONT oFont20 PIXEL of oDlg1
 
 	oPanel := TPanel():New(a2ndRow[1]+10,a2ndRow[2],'',oDlg1,, .T., .T.,, ,a2ndRow[3],a2ndRow[4])
 
@@ -169,7 +169,7 @@ Static Function MenuDef()
 	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
-	ADD OPTION aRotina TITLE 'Imprime Boleto'	ACTION 'U_ImpBolBB()'   OPERATION 1 ACCESS 0// */
+	ADD OPTION aRotina TITLE 'Imprime Boleto'	ACTION 'U_ImpBoleto(cCodBco)'   OPERATION 1 ACCESS 0// */
 
 	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
 	ADD OPTION aSubMnu TITLE 'Todos'        	ACTION 'U_BOLTODOS()'   OPERATION 3 ACCESS 0
@@ -570,7 +570,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 			if oBancoBB:registraboletos(QRY->E1_PREFIXO, QRY->E1_NUM, QRY->E1_PARCELA, QRY->E1_TIPO)
 				cResult := oBancoBB:cResult
 				FWJsonDeserialize(cResult,@oResultado)
-				FWAlertSuccess("Processamento finalizado", "Integração Banco do Brasil")
+				lRet := .t.
 			Else
 				cResult := oBancoBB:cResult
 				If AttIsMemberOf(cResult, "ERROS")
@@ -578,8 +578,9 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 				Else
 					FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + '', "Integração Banco do Brasil")
 				EndIf
+				return
 			Endif
-			return
+
 		Else
 			aDados[2] := Alltrim(QRY->E1_CODBAR)
 			aDados[3] := Alltrim(QRY->E1_CODDIG)
@@ -587,142 +588,148 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 			aDados[13] := Alltrim(QRY->E1_NOSNUM)
 		Endif
 
-		//Verificando Abatimento dos títulos
-		nAbatim	:= 0
+		IF cBanco <> "001"
 
-		//Tratando os juros
-		njuros := 0
+			//Verificando Abatimento dos títulos
+			nAbatim	:= 0
 
-		If QRY->E1_VALJUR > 0 .and. QRY->E1_PORCJUR > 0
-			nJuros	:= Round(QRY->E1_SALDO * (QRY->E1_PORCJUR/100),2)
-		EndIf
+			//Tratando os juros
+			njuros := 0
 
-		njuros := ALLTRIM(transf(njuros,"@E 999,999.99"))
+			If QRY->E1_VALJUR > 0 .and. QRY->E1_PORCJUR > 0
+				nJuros	:= Round(QRY->E1_SALDO * (QRY->E1_PORCJUR/100),2)
+			EndIf
 
-		//Montando o array com dados do título para o arry de Dados do boleto
-		//Linha  A do Boleto
-		aDados[1] := aBancos[nPOS][3]                           // Arquivo de logotipo bmp na pasta SYSTEM
+			njuros := ALLTRIM(transf(njuros,"@E 999,999.99"))
 
-		oPrn:StartPage()
+			//Montando o array com dados do título para o arry de Dados do boleto
+			//Linha  A do Boleto
+			aDados[1] := aBancos[nPOS][3]                           // Arquivo de logotipo bmp na pasta SYSTEM
 
-		//Buscando dados do cedente   - busca da tabela de empresas SM0
-		cNomeCed	:= SUBS (SM0->M0_NOMECOM,1,35) +  "  CNPJ: " + TRANSFORM(SM0->M0_CGC, "@R 99.999.999/9999-99")
-		cEndCed		:= alltrim(SM0->M0_ENDCOB) + ' , ' + alltrim(SM0->M0_BAIRCOB) + ' , ' + alltrim(SM0->M0_CIDCOB);
-			+ ' - ' + alltrim(SM0->M0_ESTCOB) + ', Cep: ' + TRansform(SM0->M0_CEPCOB, "@R 99999-999")
+			oPrn:StartPage()
 
-		//Linha B do Boleto
-		if cBanco == '341'
-			aDados[4] := 'Até o vencimento pague preferencialmente no Itaú. Após o vencimento pague somente no Itaú.'	// Local de pagamento
+			//Buscando dados do cedente   - busca da tabela de empresas SM0
+			cNomeCed	:= SUBS (SM0->M0_NOMECOM,1,35) +  "  CNPJ: " + TRANSFORM(SM0->M0_CGC, "@R 99.999.999/9999-99")
+			cEndCed		:= alltrim(SM0->M0_ENDCOB) + ' , ' + alltrim(SM0->M0_BAIRCOB) + ' , ' + alltrim(SM0->M0_CIDCOB);
+				+ ' - ' + alltrim(SM0->M0_ESTCOB) + ', Cep: ' + TRansform(SM0->M0_CEPCOB, "@R 99999-999")
+
+			//Linha B do Boleto
+			if cBanco == '341'
+				aDados[4] := 'Até o vencimento pague preferencialmente no Itaú. Após o vencimento pague somente no Itaú.'	// Local de pagamento
+			endif
+
+			if cBanco == '756'
+				aDados[4] := 'Pague preferencialmente no SICOOB.'  			// Local de pagamento
+			Else
+				aDados[4] := 'Pagável em qualquer Banco até o vencimento'	// Local de pagamento
+			endif
+
+			if cBanco == '237'
+				aDados[4] := 'Pagável Preferencialmente na rede Bradesco  ou no Bradesco Expresso'  // Local de pagamento
+			endif
+
+			aDados[5] := substr(QRY->E1_VENCREA,7,2)+"/"+substr(QRY->E1_VENCREA,5,2)+"/"+substr(QRY->E1_VENCREA,1,4)	//Vencimento
+
+			//Linha C do Boleto
+			aDados[6] :=  cNomeCed                                     //Nome do Cedente
+			aDados[7] :=  aBancos[nPOS][10] + "/" + aBancos[nPOS][8]   //Agencia / Codigo Convênio
+
+			//Linhda D do Boleto
+			aDados[8] := substr(QRY->E1_EMISSAO,7,2)+"/"+substr(QRY->E1_EMISSAO,5,2)+"/"+substr(QRY->E1_EMISSAO,1,4)	//Data de Emissao
+
+			IF cBanco == '756'
+				aDados[9] := QRY->E1_IDCNAB
+			ELSEIF (alltrim(QRY->E1_PARCELA)='')
+				aDados[9] := QRY->E1_PREFIXO + QRY->E1_NUM + QRY->E1_PARCELA + QRY->E1_TIPO          //Numero do documento
+			ELSE
+				aDados[9] := QRY->E1_PREFIXO + QRY->E1_NUM + "/" +  QRY->E1_PARCELA + QRY->E1_TIPO   //Numero do documento
+			ENDIF
+
+			IF cBanco == '001' .or. cBanco == '237'
+				aDados[10]:= 'DM'	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
+			endif
+
+			IF cBanco == '341'
+				aDados[10]:= 'DMI'	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
+			endif
+
+			IF cBanco == '756'
+				aDados[10]:= 'DM' 	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
+
+			endif
+
+			IF cBanco == '756'
+				aDados[11]:= "S"                                //Aceite
+			ELSE
+				aDados[11]:= "N"                                //Aceite
+			ENDIF
+
+			aDados[12]:= DTOC(dDatabase)                    //Data da impressão do boleto
+
+			//Linha  E do Boleto
+			aDados[14]:= cCarteira                          //Carteira
+			aDados[15]:= "REAL"                             //Moeda/espécie
+			aDados[16]:= ""                                 //Quantidade de moeda variável
+			aDados[17]:= TRANSF(nValorReal,"@E 999,999.99")	//Valor do Título    (calculado - descrescimos + acrescimentos - abatimentos)
+
+			//Linha F do Boleto
+			aDados[18]:=  ""                                //Instruções  //Verificar
+			aDados[19]:=  ""                                //Desconto / Abatimento		//Não preencher
+
+			//Linha G do Boleto
+			aDados[20]:=  ""                                //Juros / Multa             //Não preencher
+
+			//Linha H do Boleto
+			aDados[21]:=  nValorReal                       //Valor Cobrado              //Não preencher
+
+			//Linha I do Boleto
+			aDados[22]:= cSacado                          //Sacado (Nome, CNPJ)
+			aDados[23]:= cEndSac                          //Endereço
+			aDados[24]:= cEndSac1                         //CEP - CIDADE - MUNICIPIO - ESTADO
+			aDados[25]:= cNomeCli                         //Sacado
+			aDados[26]:= cEndCed                          //Endereço do Cedente
+			aDados[30]:= ""   							 //Mensagem 3
+
+			//Atualiza campos
+			cChave :=	QRY->E1_CLIENTE+QRY->E1_LOJA+QRY->E1_PREFIXO+QRY->E1_NUM+QRY->E1_PARCELA+QRY->E1_TIPO
+
+			If Empty(QRY->E1_XQRCODE)
+				atuaCampos(cChave,aBancos[nPOS], bPulou)
+			EndIf
+
+			//Pegando novo sequencial
+			//Buscando parâmetros de banco  e atualizando o array de bancos
+			dbSelectArea("SEE")
+			dbSetOrder(1)   // EE_FILIAL  + EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
+			dbSeek(         XFILIAL("SEE") + aBancos[nPOS][1]   + aBancos[nPOS][10]   + aBancos[nPOS][9]   +  '001',     .T.)
+
+			cFaixaAtu         := SEE->EE_FAXATU
+			aBancos[nPOS][14] := cFaixaAtu          //Contador do sequencial
+
+			SEE->(DbCloseArea())
+
+			//Chamando o método de impressão passando o array de Dados
+			if cPrint
+				u_printBolet(aDados, aBancos, nPOS, oPrn,cbanco)
+			endif
+			oPrn:EndPage()
 		endif
-
-		if cBanco == '756'
-			aDados[4] := 'Pague preferencialmente no SICOOB.'  			// Local de pagamento
-		Else
-			aDados[4] := 'Pagável em qualquer Banco até o vencimento'	// Local de pagamento
-		endif
-
-		if cBanco == '237'
-			aDados[4] := 'Pagável Preferencialmente na rede Bradesco  ou no Bradesco Expresso'  // Local de pagamento
-		endif
-
-		aDados[5] := substr(QRY->E1_VENCREA,7,2)+"/"+substr(QRY->E1_VENCREA,5,2)+"/"+substr(QRY->E1_VENCREA,1,4)	//Vencimento
-
-		//Linha C do Boleto
-		aDados[6] :=  cNomeCed                                     //Nome do Cedente
-		aDados[7] :=  aBancos[nPOS][10] + "/" + aBancos[nPOS][8]   //Agencia / Codigo Convênio
-
-		//Linhda D do Boleto
-		aDados[8] := substr(QRY->E1_EMISSAO,7,2)+"/"+substr(QRY->E1_EMISSAO,5,2)+"/"+substr(QRY->E1_EMISSAO,1,4)	//Data de Emissao
-
-		IF cBanco == '756'
-			aDados[9] := QRY->E1_IDCNAB
-		ELSEIF (alltrim(QRY->E1_PARCELA)='')
-			aDados[9] := QRY->E1_PREFIXO + QRY->E1_NUM + QRY->E1_PARCELA + QRY->E1_TIPO          //Numero do documento
-		ELSE
-			aDados[9] := QRY->E1_PREFIXO + QRY->E1_NUM + "/" +  QRY->E1_PARCELA + QRY->E1_TIPO   //Numero do documento
-		ENDIF
-
-		IF cBanco == '001' .or. cBanco == '237'
-			aDados[10]:= 'DM'	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
-		endif
-
-		IF cBanco == '341'
-			aDados[10]:= 'DMI'	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
-		endif
-
-		IF cBanco == '756'
-			aDados[10]:= 'DM' 	//Especie - tipo de documento que originou o boleto (ex: DM, DS, NP) //VERIFICAR
-
-		endif
-
-		IF cBanco == '756'
-			aDados[11]:= "S"                                //Aceite
-		ELSE
-			aDados[11]:= "N"                                //Aceite
-		ENDIF
-
-		aDados[12]:= DTOC(dDatabase)                    //Data da impressão do boleto
-
-		//Linha  E do Boleto
-		aDados[14]:= cCarteira                          //Carteira
-		aDados[15]:= "REAL"                             //Moeda/espécie
-		aDados[16]:= ""                                 //Quantidade de moeda variável
-		aDados[17]:= TRANSF(nValorReal,"@E 999,999.99")	//Valor do Título    (calculado - descrescimos + acrescimentos - abatimentos)
-
-		//Linha F do Boleto
-		aDados[18]:=  ""                                //Instruções  //Verificar
-		aDados[19]:=  ""                                //Desconto / Abatimento		//Não preencher
-
-		//Linha G do Boleto
-		aDados[20]:=  ""                                //Juros / Multa             //Não preencher
-
-		//Linha H do Boleto
-		aDados[21]:=  nValorReal                       //Valor Cobrado              //Não preencher
-
-		//Linha I do Boleto
-		aDados[22]:= cSacado                          //Sacado (Nome, CNPJ)
-		aDados[23]:= cEndSac                          //Endereço
-		aDados[24]:= cEndSac1                         //CEP - CIDADE - MUNICIPIO - ESTADO
-		aDados[25]:= cNomeCli                         //Sacado
-		aDados[26]:= cEndCed                          //Endereço do Cedente
-		aDados[30]:= ""   							 //Mensagem 3
-
-		//Atualiza campos
-		cChave :=	QRY->E1_CLIENTE+QRY->E1_LOJA+QRY->E1_PREFIXO+QRY->E1_NUM+QRY->E1_PARCELA+QRY->E1_TIPO
-
-		If Empty(QRY->E1_XQRCODE)
-			atuaCampos(cChave,aBancos[nPOS], bPulou)
-		EndIf
-
-		//Pegando novo sequencial
-		//Buscando parâmetros de banco  e atualizando o array de bancos
-		dbSelectArea("SEE")
-		dbSetOrder(1)   // EE_FILIAL  + EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
-		dbSeek(         XFILIAL("SEE") + aBancos[nPOS][1]   + aBancos[nPOS][10]   + aBancos[nPOS][9]   +  '001',     .T.)
-
-		cFaixaAtu         := SEE->EE_FAXATU
-		aBancos[nPOS][14] := cFaixaAtu          //Contador do sequencial
-
-		SEE->(DbCloseArea())
-
-		//Chamando o método de impressão passando o array de Dados
-		if cPrint
-			u_printBolet(aDados, aBancos, nPOS, oPrn,cbanco)
-		end if
-
 		QRY->(DbSkip())
-		oPrn:EndPage()
 	enddo
-	if lRet .and. cBanco== "756" //sicoob
+
+	IF cBanco == "001"
+		cMsg := '<font color="#269426ff" size="4">Boleto registrado com sucesso!</font>' + '<br>'
+		FWAlertSuccess(cMsg , "Retorno Banco do Brasil- BIOFIN03")
+	elseif lRet .and. cBanco== "756" //sicoob
 		cMsg := '<font color="#269426ff" size="4">Boleto registrado com sucesso!</font>' + '<br>'
 		FWAlertSuccess(cMsg , "Retorno Sicoob - BIOFIN03")
 	endif
 
 	if cPrint
 		oPrn:Preview()
-	end if
+	endif
 
-	//cMarc := ""
+	cMarc := ""
 	oMark:MarkRec(.F.)
 	oMark:Refresh()
 	U_NOPRINT()
@@ -1582,7 +1589,7 @@ static function setBanco()
 return
 
 
-/*/{Protheus.doc} ImpBolBB
+/*/{Protheus.doc} ImpBoleto
 Imprime Boleto Banco do Brasil
 @type function
 @version 1.1
@@ -1591,11 +1598,10 @@ Imprime Boleto Banco do Brasil
 @return variant, return_description
 /*/
 
-User Function ImpBolBB()
+User Function ImpBoleto(cCodBco)
 
 	Local aArea      := GetArea()
 	Local aDadosTit  := {}
-	Local aDatSacado := {}
 	Local aBancos	 := {}
 	Local oBancoBB   as object
 	Local oPrn		 as object
@@ -1730,26 +1736,6 @@ User Function ImpBolBB()
 				aBcosApi[1][10],; // 16 - Juros por Dia
 				aBcosApi[1][13]}) // 17 - Dias para Protesto
 
-				dbSelectArea("SA1")
-				dbSetOrder(1)  // A1_FILIAL   +A1_COD          +A1_LOJA
-				dbSeek(  xFilial("SA1")+(cTMPSE1)->E1_CLIENTE +(cTMPSE1)->E1_LOJA, .T.)
-
-				cNomeCli :=  alltrim(SA1->A1_NOME)
-				cCGCCli  :=  If(SA1->A1_TIPO=="F",Transform(SA1->A1_CGC, "@R 999.999.999-99"),Transform(SA1->A1_CGC, "@R 99.999.999/9999-99"))
-				cSacado  :=  cNomeCli + "   " + " CPF/CPNJ: " + cCGCCli
-				cEndSac  :=  ALLTRIM(SA1->A1_END) + "," + ALLTRIM(SA1->A1_BAIRRO)
-				cEndSac1 :=  TRANSFORM(SA1->A1_CEP,"@R 99999-999") + " - " + ALLTRIM(SA1->A1_MUN) + " - " + SA1->A1_EST
-
-				aDatSacado   := { cNomeCli                 ,;   	// [1]Razão Social
-				AllTrim((cTMPSE1)->E1_CLIENTE )+"-"+AllTrim((cTMPSE1)->E1_LOJA) ,;   	// [2]Código
-				STRTRAN(AllTrim(SA1->A1_END),"-"," ")      ,;       // [3]Endereço
-				AllTrim(SA1->A1_MUN)	                   ,;   	// [4]Cidade
-				SA1->A1_EST	                               ,;   	// [5]Estado
-				cvaltochar(val(SA1->A1_CEP))               ,;   	// [6]CEP
-				SA1->A1_CGC								   ,;		// [7]CGC
-				SA1->A1_PESSOA							   ,;       // [8]PESSOA
-				STRTRAN(AllTrim(SA1->A1_BAIRRO),"-"," ")    }       // [9]BAIRRO
-
 				cBase64 := U_BEWS0002("SEGVIA",,,aBancos,1,,,aDados, , , , cCodClie, alltrim(aDadosTit[6])	)
 				cBase64 := Decode64(cBase64)
 				cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
@@ -1775,8 +1761,6 @@ User Function ImpBolBB()
 	oCodAge:Refresh()
 	oCodCta:Refresh()
 	oNomeBco:Refresh()
-	oMark:MarkRec(.F.)
-	oMark:Refresh()
 	U_NOPRINT()
 	RestArea(aArea)
 Return Nil

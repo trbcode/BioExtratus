@@ -1034,38 +1034,43 @@ method recebimentoboletos(cDataInicioMovimentacao as Character, cDataFimMoviment
 		If oObj <> Nil
 			oResponse:FromJson(oRestBB:GetResult())
 			FWLogMsg("INFO",/*cTransactionId*/,"API-BB", /*cCategory*/, /*cStep*/, /*cMsgId*/, "Início do processamento de baixas - Período: "+cPeriodo, /*nMensure*/, /*nElapseTime*/, /*aMessage*/)
-			For nY:= 1 to Len(oObj:boletos)
-				nVlrJur := 0
-				lLiq := oObj:boletos[nY]['CODIGOESTADOTITULOCOBRANCA'] == 6
-				If lLiq
-					cNosso := AllTrim(oObj:boletos[nY]['NUMEROBOLETOBB'])
-					nRecno := U_GetChave(cNosso)
-					IF nRecno > 0
-						nValBx := oObj:boletos[nY]['VALORATUAL']
-						dDatMov := datavalida(ctod(strtran(oObj:boletos[nY]['DATAMOVIMENTO'],".","/")))
-						dDatCred := datavalida(ctod(strtran(oObj:boletos[nY]['DATACREDITO'],".","/")))
-						ntotal += oObj:boletos[nY]['VALORPAGO']
-						natual += oObj:boletos[nY]['VALORATUAL']
-						If (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL']) > nValorRegistro
-							nVlrJur := (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL'])
-							nTotJur += nVlrJur
-						endIf
-						::aRecebidosSucesso := {}
-						::aRecebidosErro := {}
+			IF !AttIsMemberOf(oObj, "ERROS")
+				For nY:= 1 to Len(oObj:boletos)
+					nVlrJur := 0
+					lLiq := oObj:boletos[nY]['CODIGOESTADOTITULOCOBRANCA'] == 6
+					If lLiq
+						cNosso := AllTrim(oObj:boletos[nY]['NUMEROBOLETOBB'])
+						nRecno := U_GetChave(cNosso)
+						IF nRecno > 0
+							nValBx := oObj:boletos[nY]['VALORATUAL']
+							dDatMov := datavalida(ctod(strtran(oObj:boletos[nY]['DATAMOVIMENTO'],".","/")))
+							dDatCred := datavalida(ctod(strtran(oObj:boletos[nY]['DATACREDITO'],".","/")))
+							ntotal += oObj:boletos[nY]['VALORPAGO']
+							natual += oObj:boletos[nY]['VALORATUAL']
+							If (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL']) > nValorRegistro
+								nVlrJur := (oObj:boletos[nY]['VALORPAGO'] - oObj:boletos[nY]['VALORATUAL'])
+								nTotJur += nVlrJur
+							endIf
+							::aRecebidosSucesso := {}
+							::aRecebidosErro := {}
 
-						If Ws10GrBx(nRecno, nValBx, ::codigoBanco, ::codigoAgencia, ::codigoConta,dDatCred,dDatMov,nVlrJur, @::aRecebidosSucesso, @::aRecebidosErro)
-							FWLogMsg("WARN", "", "Sucesso", "RLWS0010", "", "", EncodeUTF8("O titulo com o nosso numero "+cNosso+" foi baixado com sucesso!") , 0, 0)
-						Else
-							FWLogMsg("WARN", "", "Erro", "RLWS0010", "", "", EncodeUTF8("Erro ao baixar titulo com o nosso numero "+cNosso+"!") , 0, 0)
+							If Ws10GrBx(nRecno, nValBx, ::codigoBanco, ::codigoAgencia, ::codigoConta,dDatCred,dDatMov,nVlrJur, @::aRecebidosSucesso, @::aRecebidosErro)
+								FWLogMsg("WARN", "", "Sucesso", "RLWS0010", "", "", EncodeUTF8("O titulo com o nosso numero "+cNosso+" foi baixado com sucesso!") , 0, 0)
+							Else
+								FWLogMsg("WARN", "", "Erro", "RLWS0010", "", "", EncodeUTF8("Erro ao baixar titulo com o nosso numero "+cNosso+"!") , 0, 0)
+							EndIf
 						EndIf
 					EndIf
-				EndIf
-			Next nY
-			ConOut( "Valor total baixa ="+Transform(ntotal,'@E 999,999,999.99'))
-			ConOut( "Valor total Original ="+Transform(natual,'@E 999,999,999.99'))
-			ConOut( "Valor total Original ="+Transform(nTotJur,'@E 999,999,999.99'))
-			lRet := .T.
-			::cResult := oObj
+				Next nY
+				ConOut( "Valor total baixa ="+Transform(ntotal,'@E 999,999,999.99'))
+				ConOut( "Valor total Original ="+Transform(natual,'@E 999,999,999.99'))
+				ConOut( "Valor total Original ="+Transform(nTotJur,'@E 999,999,999.99'))
+				lRet := .T.
+				::cResult := oObj
+			else
+				FWLogMsg("ERROR", "", "Erro", "API-BB", "", "", "Erros retornados pela API do BB durante o processamento de baixas - Período: "+cPeriodo+"! ("+DecodeUTF8(oObj:ERROS[1]['TEXTOMENSAGEM'])+")" , 0, 0)
+				::cResult := oObj:ERROS[1]
+			EndIf
 		else
 			FWJsonDeserialize(oRestBB:GetResult(),@oObj)
 			::cResult := oObj

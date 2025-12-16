@@ -26,7 +26,7 @@ user function FA040ALT()
 	//Local cMsg        := ""
 	Local nVlrAbat    := SomaAbat(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,"R",1,,SE1->E1_CLIENTE,SE1->E1_LOJA)
 	Local nValorReal  := (SE1->E1_SALDO-nVlrAbat+ SE1->E1_ACRESC - SE1->E1_DECRESC)
-	Local cFilePrint  := ""
+	//Local cFilePrint  := ""
 	Local oBancoBB    as object
 	Local oPrn        as object
 	Local lSucess 		:= .F.
@@ -104,9 +104,9 @@ user function FA040ALT()
 			SE1->E1_TIPO                                                    ,;  // [8] Tipo do Titulo
 			SE1->(Recno()) }                                                   // [9] Recno                                                    // [8] Tipo do Titulo
 
-
 			IF U_BEWS0002("ALT",,aDadosTit,aBancos,nPOS,,,@aDados,,,,cIDClient,STRTRAN(alltrim(SE1->E1_NOSNUM),"-",""))
-
+				//retirado devido não precisar mais imprimir o boleto apos a alteração
+				/*
 				dbSelectArea("SA1")
 				dbSetOrder(1)  // A1_FILIAL   +A1_COD          +A1_LOJA
 				dbSeek(  xFilial("SA1")+SE1->E1_CLIENTE +SE1->E1_LOJA, .T.)
@@ -191,7 +191,8 @@ user function FA040ALT()
 
 				oPrn:EndPage()
 				oPrn:Preview()
-
+				FwFreeObj(oPrn)
+				*/
 			ELSE
 				lRet := .F.
 			EndIF

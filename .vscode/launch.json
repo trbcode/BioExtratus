@@ -32,6 +32,10 @@
 				"BB"
 			],
 			"label": "U_BEFINM01"
+		},
+		{
+			"args": [],
+			"label": "U_BEFINM01"
 		}
 	],
 	"lastProgramExecuted": "SIGAMDI",

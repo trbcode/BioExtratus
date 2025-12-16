@@ -217,7 +217,6 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oJsonSicoob['prorrogacaoVencimento']                    := JsonObject():new()
 		oJsonSicoob['prorrogacaoVencimento']['dataVencimento']  := FormataDAta(aDadosTit[4])
 
-
 		cPath  := "/boletos/"
 		cBody := EncodeUTF8(oJsonSicoob:ToJson())
 		cResponse := HTTPSQuote( cURL+cPath + cNossoNum, cCert, cKey, cPswCert , "PATCH", "", cBody, 120, aClone(aHeader), @cHeaderGet )
@@ -235,13 +234,13 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 			cMensagem := ""
 			lRet := .T.
 		endif
+
 		if len(cMensagem)<>0
 			cMsg := '<font color="#0F0F00" size="4">Alteração da data de vencimento  do título '+ cNossoNum +'!</font>'
 			cMsg += '<br>'
 			cMsg += '<font color="#AD2121" size="4">'+ cValToChar(cMensagem) +'!</font>'
 			FWAlertWarning(cMsg, "Retorno Sicoob-BEWS0002")
 		endif
-
 
 		//consultando novamente o boleto para atualizar os dados.
 		if lRet
@@ -331,10 +330,17 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 			cMsg += '<br>'
 			cMsg += '<font color="#21df21ff" size="4"></font>'
 			FWAlertSucess(cMsg, "Retorno Sicoob-BEWS0002")
+
+			RecLock("SE1",.F.)
+			SE1->E1_XQRCODE := ""
+			SE1->E1_CODBAR  := ""
+			SE1->E1_CODDIG  := ""
+			SE1->E1_NOSNUM  := ""
+			SE1->E1_XXBOIMP := ""
+			SE1->(MsUnlock())
+
 			lRet := .T.
-
 		endif
-
 
 	elseif lBaixa
 
@@ -498,7 +504,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 			mError  += "<br> Mensagem: " + (oResponse['resultado']['mensagem']) + "<br>"
 		else
 			mError  += "<br>Retorno em branco, aquarde a próxima execução <br>"
-		end if
+		endif
 		U_EnviaEmail("Erro na Baixa Automática", cMsgErr, "alesssandro.magno@bioextratus.com.br", "", "")
 	endif
 
@@ -661,7 +667,7 @@ Static Function ReadFile(cFile, cDatFim, mError)
 		cMsgErr += "Nome do Arquivo: "+ cFile + "<br><br>"
 		if cDatFim == DTOS(DataValida(cDatFim))
 			U_BIOPADEM(cParaErro, "[BAIXAS AUTOMÁTICAS] - Erro na Baixa Automática: ", cMsgErr, "" , , )
-		end if//        MsgStop("Falha na abertura do arquivo ["+cFile+"]","FERROR "+cValToChar(Ferror()))
+		endif//        MsgStop("Falha na abertura do arquivo ["+cFile+"]","FERROR "+cValToChar(Ferror()))
 	endif
 Return cBuffer
 
