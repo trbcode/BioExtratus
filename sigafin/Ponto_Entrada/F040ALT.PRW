@@ -22,7 +22,8 @@ user function FA040ALT()
 	Local cAgeCNAB    := SE1->E1_AGEDEP
 	Local cCtaCNAB    := SE1->E1_CONTA
 	Local nPOS        := 1
-	Local cIDClient    := "" // o ideal ï¿½ criar um campo na tabela SEE para guardar o Id_client 0735841c-a2c7-411d-96e3-5361c5090d77
+	Local cIDClient   := "" // o ideal ï¿½ criar um campo na tabela SEE para guardar o Id_client 0735841c-a2c7-411d-96e3-5361c5090d77
+	//Local cMsg        := ""
 	Local nVlrAbat    := SomaAbat(SE1->E1_PREFIXO,SE1->E1_NUM,SE1->E1_PARCELA,"R",1,,SE1->E1_CLIENTE,SE1->E1_LOJA)
 	Local nValorReal  := (SE1->E1_SALDO-nVlrAbat+ SE1->E1_ACRESC - SE1->E1_DECRESC)
 	Local cFilePrint  := ""
@@ -44,8 +45,22 @@ user function FA040ALT()
 					FwAlertSuccess("Título Alterado com sucesso!", "F040ALT - BB")
 					FwFreeObj(oPrn)
 				ENDIF
+			ELSE
+				IF AttIsMemberOf(oBancoBB:cResult,"errors")
+					FwAlertError("Erro ao alterar o título: " + DecodeUTF8(oBancoBB:CRESULT:ERRORS[1]['MESSAGE']), "F040ALT - BB")
+				ELSE
+					FwAlertError("Erro ao alterar o título no Banco do Brasil.", "F040ALT - BB")
+				ENDIF
+				//cMsg := '<font color="#0F0F00" size="3">Deseja continuar a alteração do título mesmo sem sucesso na alteração no Banco do Brasil?</font>'
+				//cMsg += '<br><br>'
+				//cMsg += '<font color="#AD2121" size="4">Falha na alteração do título!</font>'
+				//if FWAlertYesNo(cMsg, "F040ALT - Atenção!")
+				//	lRet := .T.
+				//else
+				//	lRet := .F.
+				//endif
+				lRet := .F.
 			ENDIF
-
 		elseif SE1->E1_PORTADO == "756" //Sicoob
 
 			cIDClient := u_getIdClientSicoob(alltrim(cBcoCNAB), alltrim(cAgeCNAB), alltrim(cCtaCNAB))

@@ -4,9 +4,13 @@ Modulo  : module
 Fonte   : BEWS0002
 Objetivo: Integração EndPoints SICOOB
 *///#########################################################################################
-#INCLUDE "apwizard.ch"
-#Include "FileIO.ch"
-#INCLUDE 'protheus.CH'
+#Include "TopConn.ch"
+#include "protheus.ch"
+#INCLUDE 'FWMVCDEF.CH'
+#INCLUDE "RPTDEF.CH"
+#INCLUDE "PRTOPDEF.ch"
+#Include 'TbiConn.CH'
+#INCLUDE "FWPrintSetup.ch"
 /*/{Protheus.doc} BEWS0002
     Integração EndPoints
     @author  Igor Guimarães
@@ -198,7 +202,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		else
 			cMsg := '<font color="#0F0F00" size="4">Falha ao tentar registrar boleto </font>'
 			cMsg += '<br>Pagador:' + Alltrim(aDatSacado[1])
-			cMsg += '<br>Valor:' + aDadosTit[5]
+			cMsg += '<br>Valor:' + cValToChar(aDadosTit[5])
 			cMsg += '<font color="#AD2121" size="4">Tente novamente mais tarde!</font>'
 
 			FWAlertWarning("Falha ao Registrar Boleto " + cMsg , "Retorno Sicoob - BEWS0002")
@@ -298,7 +302,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		freeObj(oResponse)
 
 	elseif lExclui
-
+		cNossoNum := STRTRAN(alltrim(SE1->E1_NOSNUM),"-","")
 		cPath  := "/boletos/"
 		nRecno := aDados[3]
 		dbSelectArea( "SE1" )
@@ -308,16 +312,16 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		oJsonSicoob['codigoModalidade']      := 1
 
 		cBody := EncodeUTF8(oJsonSicoob:ToJson())
-		cResponse := HTTPSPost( cUrl + cPath + cValtoChar(val(strtran(SE1->E1_NOSNUM,"-",""))) + '/baixar', "", "","", "", cBody, 120 , aClone(aHeader), @cHeaderGet)
+		cResponse := HTTPSPost( cUrl + cPath + cValtoChar(val(cNossoNum)) + '/baixar', cCert, cKey, cPswCert, cPostParms, cBody, 120 , aHeader, @cHeaderGet)
 		oResponse := JsonObject():new()
 		oResponse:fromJson(FwNoAccent(cResponse))
 
 		if oResponse:hasProperty('mensagens')
 			if oResponse['mensagens'][1]:hasProperty('mensagem')
 				if oResponse['mensagens'][1]['codigo']=='5002'
-					cMsg := '<font color="#0F0F00" size="4">Cancelamento da cobrança do título '+ cValtoChar(val(strtran(SE1->E1_NOSNUM,"-",""))) +', NÃO realizado com sucesso!</font>'
+					cMsg := '<font color="#0F0F00" size="4">Falha no cancelamento do título '+ cValtoChar(val(strtran(SE1->E1_NOSNUM,"-",""))) +'!</font>'
 					cMsg += '<br>'
-					cMsg += '<font color="#AD2121" size="4">'+ oResponse['mensagens'][1]['mensagem'] +'!</font>'
+					cMsg += '<font color="#AD2121" size="4">'+	oResponse['mensagens'][1]['mensagem'] +'!</font>'
 					FWAlertWarning(cMsg, "Retorno Sicoob-BEWS0002")
 					lRet := .F.
 				endif
@@ -325,7 +329,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		else
 			cMsg := '<font color="#0F0F00" size="4">Cancelamento da cobrança do título '+ cValtoChar(val(strtran(SE1->E1_NOSNUM,"-",""))) +',  realizado com sucesso!</font>'
 			cMsg += '<br>'
-			cMsg += '<font color="#AD2121" size="4"></font>'
+			cMsg += '<font color="#21df21ff" size="4"></font>'
 			FWAlertSucess(cMsg, "Retorno Sicoob-BEWS0002")
 			lRet := .T.
 

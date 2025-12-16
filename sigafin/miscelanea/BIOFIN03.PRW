@@ -164,13 +164,12 @@ Static Function MenuDef()
 	Local aRotina := {}
 	Local aSubMnu := {}
 
-
 	ADD OPTION aRotina TITLE 'Verificar NCC'   	ACTION 'U_VerNCC()'     OPERATION 3 ACCESS 0
 	ADD OPTION aRotina TITLE 'Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .F.  )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
-	ADD OPTION aRotina TITLE 'Imprime Boleto BB'	ACTION 'U_ImpBolBB(1)'   OPERATION 1 ACCESS 0// */
+	ADD OPTION aRotina TITLE 'Imprime Boleto'	ACTION 'U_ImpBolBB()'   OPERATION 1 ACCESS 0// */
 
 	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
 	ADD OPTION aSubMnu TITLE 'Todos'        	ACTION 'U_BOLTODOS()'   OPERATION 3 ACCESS 0
@@ -258,14 +257,14 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 
 	local lRet       := .f.
 	local nVlrAbat   := 0
-	local aDadosEmp  := {}
-	local aDadosTit  := {}
-	local aDatSacado := {}
 	local aBolText   := {"","",""}
 	Local nDiasLim   := 180
 	Local oResultado := JsonObject():New()
 	Local auxMulta   :=""
 	Local auxJur     :=""
+	local aDadosTit  := {}
+	local aDatSacado := {}
+	private aDadosEmp  := {}
 	private cPerg2	:= "BIOFIN03"
 	private cFilePrint := ""
 	private oBancoBB as Object
@@ -345,7 +344,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	//tratando parâmetros do banco
 	nDvAgencia      	:=  alltrim(SEE->EE_DVAGE)
 	NDvConta        	:=  alltrim(SEE->EE_DVCTA)
-	cCodced		  		  :=  alltrim(cConta) + NdvConta
+	cCodced		  		:=  alltrim(cConta) + NdvConta
 	cCodEmp         	:=  alltrim(SEE->EE_CODEMP)
 	cFaixaAtu       	:=  alltrim(SEE->EE_FAXATU)
 	cFaixaFim       	:=  alltrim(SEE->EE_FAXFIM)
@@ -368,7 +367,6 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	aBancos[nPOS][15] 	:= cJuros
 	aBancos[nPOS][16] 	:= cJurDia
 	aBancos[nPOS][17] 	:= nDiasLim
-
 
 	If EMPTY(cFilePrint)
 		cFilePrint := "BOL_" + Alltrim(QRY->E1_PREFIXO)+"_" + Alltrim(QRY->E1_NUM) + Alltrim(QRY->E1_PARCELA) + Alltrim(QRY->E1_TIPO)  + "_" + AllTrim(QRY->E1_CLIENTE) + "_" + AllTrim(QRY->E1_LOJA)
@@ -714,7 +712,11 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 
 		QRY->(DbSkip())
 		oPrn:EndPage()
-	End
+	enddo
+	if lRet .and. cBanco== "756" //sicoob
+		cMsg := '<font color="#269426ff" size="4">Boleto registrado com sucesso!</font>' + '<br>'
+		FWAlertSuccess(cMsg , "Retorno Sicoob - BIOFIN03")
+	endif
 
 	if cPrint
 		oPrn:Preview()
@@ -1298,7 +1300,7 @@ User Function BOLCANC(cCodClie)
 		Else
 			if QRY1->E1_PORTADO == "756" //sicoob
 				//Realizando o cancelamento junto ao sicoob
-				lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados, , , , 	)
+				lRet := U_BEWS0002("EXC",,,aBancos,1,,,aDados, , , , cCodClie	)
 				If !lRet
 					MsgStop("09 - Erro ao cancelar boleto " + QRY1->E1_NUM + " Parcela: " + QRY1->E1_PARCELA  + " junto ao SICOOB . Comunique a Equipe Protheus!", "ATENCAO!")
 				EndIf
@@ -1519,7 +1521,12 @@ Static function GetFilter(cCodBco)
 		cTodos	 := "E1_NATUREZ <> '1020003' .AND. E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'PAC'                          .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
 		//cTodos   := "E1_NATUREZ <> '1020003' .AND. E1_XXGRBOL <> '2' .AND. E1_PREFIXO = 'PAC' .AND. E1_VALOR <> '1.00' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'" -- ENVIADO PELO Maycon
 		cFilBB   := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO == 'PAC' .AND. E1_PORTADO == '001' .AND. E1_TIPO == 'BOL'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' "
-
+		// Conta PAC - Chikas - Banco do Brasil (16583)
+	ElseIf Padr(AllTrim(cCodCta), TamSX3("EE_CONTA")[1]) == Padr("16583", TamSX3("EE_CONTA")[1])
+		// Não impressos
+		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO = 'PAC' .AND. E1_VALOR <> '1.00' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C'"
+		// Todos
+		cTodos   := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO = 'PAC' .AND. E1_VALOR <> '1.00' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C'"
 		// Venda de Produto - Todas as Marcas - Sicoob (8429)
 	Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr("8429", TamSX3("EE_CONTA")[1])
 
@@ -1584,9 +1591,13 @@ Imprime Boleto Banco do Brasil
 @return variant, return_description
 /*/
 
-User Function ImpBolBB(nOpc)
+User Function ImpBolBB()
+
 	Local aArea      := GetArea()
-	Local oBancoBB as object
+	Local aDadosTit  := {}
+	Local aDatSacado := {}
+	Local aBancos	 := {}
+	Local oBancoBB   as object
 	Local oPrn		 as object
 	Local cFilePrint := ""
 	Local cTMPSE1    := GetNextAlias()
@@ -1596,8 +1607,12 @@ User Function ImpBolBB(nOpc)
 	Local lEspera	 := .T.
 	Local cPath 	 := GetTempPath() + "totvsprinter\"
 	Local nI         := 0
+	Local nOpc       := 4
 	Local aMensagem  := {}
 	Local cBanco     := Left(cCodBco,3)
+	Local aBcosApi   := u_GetBcoApi(cBanco, cCodAge, cCodCta)
+	Local cBase64    := ""
+	Local nHandle	:= 0
 
 	If Len(cMarc) > 0
 		If  SUBSTR(cMarc,len(cMarc),Len(cMarc)-1) == ","
@@ -1619,67 +1634,141 @@ User Function ImpBolBB(nOpc)
 			   SE1.E1_TIPO, 
 			   SE1.E1_CLIENTE, 
 			   SE1.E1_LOJA, 
-			   SE1.E1_NOSNUM
+			   SE1.E1_VENCTO, 
+			   SE1.E1_EMISSAO,
+			   SE1.E1_NOSNUM,
+			   SE1.E1_NUMBCO,
+			   SE1.E1_SALDO,
+			   SE1.E1_ACRESC,
+			   SE1.E1_DECRESC
 		from %table:SE1% SE1
 		where SE1.E1_FILIAL = %Exp:_cCodfil%
 		AND ( %Exp:_cFiltro% )
 		ORDER BY E1_NUM, E1_PARCELA
 		EndSql
-
-		U_IntegBB(@oBancoBB,cBanco, cCodAge, cCodCta)
-
+		if cBanco == "001"
+			U_IntegBB(@oBancoBB,cBanco, cCodAge, cCodCta)
+		endif
 		dbSelectArea("SEE")
 		dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
 		DbSeek( xFilial("SEE") + PADR(cBanco,TamSX3("EE_CODIGO")[1]) + PADR(cCodAge,TamSX3("EE_AGENCIA")[1]) + PADR(cCodCta,TamSX3("EE_CONTA")[1]) +  '001')
 		aMensagem := {Alltrim(SEE->EE_XXMENS1), Alltrim(SEE->EE_XXMENS2), Alltrim(SEE->EE_XXMENS3)}
 
-		WHILE (cTMPSE1)->(!Eof()) .and. !empty(oBancoBB)
-			if nOpc == 1
-
-				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .T./*gera BasePDF */,cPath, cFilePrint, aMensagem)
-
-			elseif nOpc == 2
-				lSucess :=oBancoBB:consultapix(Alltrim((cTMPSE1)->E1_NOSNUM))
-				if lSucess
-					lEspera := .F.
-				endif
-			elseif nOpc == 3
-				lSucess := oBancoBB:consultaBoleto(Alltrim(SE1->E1_NUMBCO))
-				if lSucess
-					lEspera := .F.
-				endif
-			elseif nOpc == 4
-
-				cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
-
-				oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,cPath,.T.)
-				oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, @oPrn, .F./*gera BasePDF */,cPath, cFilePrint,aMensagem)
-				oPrn:SetViewPDF(.T.)
-				oPrn:Print()
-				lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
-
-				while lEspera
-					sleep(5000)
-					nI++
-					lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
-					if nI > 60
+		WHILE (cTMPSE1)->(!Eof())
+			if cBanco == "001" .and. !empty(oBancoBB)
+				if nOpc == 1
+					oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, oPrn, .T./*gera BasePDF */,cPath, cFilePrint, aMensagem)
+				elseif nOpc == 2
+					lSucess :=oBancoBB:consultapix(Alltrim((cTMPSE1)->E1_NOSNUM))
+					if lSucess
 						lEspera := .F.
 					endif
-				enddo
+				elseif nOpc == 3
+					lSucess := oBancoBB:consultaBoleto(Alltrim(SE1->E1_NUMBCO))
+					if lSucess
+						lEspera := .F.
+					endif
+				elseif nOpc == 4
 
-				if nI <= 60
-					cArqBs64 := U_FileTo64(cPath + cFilePrint + ".pdf")
-					SE1->(DbSetorder(1))
-					SE1->(DbSeek( xFilial("SE1") + (cTMPSE1)->E1_PREFIXO + (cTMPSE1)->E1_NUM + (cTMPSE1)->E1_PARCELA + (cTMPSE1)->E1_TIPO ))
-					RecLock("SE1",.F.)
-					Replace SE1->E1_XXBOIMP  with "S"
-					SE1->(DbUnlock())
+					cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
+
+					oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,cPath,.T.)
+					oBancoBB:imprimeboletos((cTMPSE1)->E1_PREFIXO, (cTMPSE1)->E1_NUM, (cTMPSE1)->E1_PARCELA, (cTMPSE1)->E1_TIPO, @oPrn, .F./*gera BasePDF */,cPath, cFilePrint,aMensagem)
+					oPrn:SetViewPDF(.T.)
+					oPrn:Print()
+					lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+
+					while lEspera
+						sleep(5000)
+						nI++
+						lEspera := u_ChecaFile( cPath + cFilePrint + ".pdf")
+						if nI > 60
+							lEspera := .F.
+						endif
+					enddo
+
+					if nI <= 60
+						cArqBs64 := U_FileTo64(cPath + cFilePrint + ".pdf")
+						SE1->(DbSetorder(1))
+						SE1->(DbSeek( xFilial("SE1") + (cTMPSE1)->E1_PREFIXO + (cTMPSE1)->E1_NUM + (cTMPSE1)->E1_PARCELA + (cTMPSE1)->E1_TIPO ))
+						RecLock("SE1",.F.)
+						Replace SE1->E1_XXBOIMP  with "S"
+						SE1->(DbUnlock())
+					endif
+
+					FwFreeObj(oPrn)
 				endif
+			elseif cBanco == "756"
 
-				FwFreeObj(oPrn)
+				nVlrAbat    :=  SomaAbat((cTMPSE1)->E1_PREFIXO,(cTMPSE1)->E1_NUM,(cTMPSE1)->E1_PARCELA,"R",1,,(cTMPSE1)->E1_CLIENTE,(cTMPSE1)->E1_LOJA)
+				nValorReal  := ((cTMPSE1)->E1_SALDO-nVlrAbat+ (cTMPSE1)->E1_ACRESC - (cTMPSE1)->E1_DECRESC)
+				aDadosTit	:= {AllTrim((cTMPSE1)->E1_NUM)+AllTrim((cTMPSE1)->E1_PARCELA)	,;  // [1] Número do título
+				(cTMPSE1)->E1_EMISSAO                              	                ,;  // [2] Data da emissão do título
+				dDataBase                    					                ,;  // [3] Data da emissão do boleto
+				(cTMPSE1)->E1_VENCTO                               	                ,;  // [4] Data do vencimento
+				nValorReal                	                                    ,;  // [5] Valor do título
+				(cTMPSE1)->E1_NUMBCO                             	                        ,;  // [6] Nosso número (Ver fórmula para calculo)
+				(cTMPSE1)->E1_PREFIXO                               	                ,;  // [7] Prefixo da NF
+				(cTMPSE1)->E1_TIPO}                                                       // [8] Tipo do Titulo
+
+				aadd(aBancos,{;
+					cBanco,; //1
+				"",; //2
+				"",;//3
+				"",; //4
+				Alltrim(aBcosApi[1][4]),; // 5 - Digito da Agência
+				Alltrim(aBcosApi[1][6]),; // 6 - Digito da Conta
+				Alltrim(aBcosApi[1][5]) + Alltrim(aBcosApi[1][6]) ,; // 7 - Código cedente
+				Alltrim(aBcosApi[1][2]),; // 8 - Código Convêncio
+				Alltrim(aBcosApi[1][5]),; // 9 - Número da Conta Cedente
+				Alltrim(aBcosApi[1][3]),; // 10 - Agência cobradora
+				"",; //11
+				Alltrim(aBcosApi[1][15]),; // 12 - Carteira
+				Alltrim(aBcosApi[1][12]),; // 13 - Faixa Final
+				"",; //14
+				aBcosApi[1][9],; // 15 - Juros de Mora
+				aBcosApi[1][10],; // 16 - Juros por Dia
+				aBcosApi[1][13]}) // 17 - Dias para Protesto
+
+				dbSelectArea("SA1")
+				dbSetOrder(1)  // A1_FILIAL   +A1_COD          +A1_LOJA
+				dbSeek(  xFilial("SA1")+(cTMPSE1)->E1_CLIENTE +(cTMPSE1)->E1_LOJA, .T.)
+
+				cNomeCli :=  alltrim(SA1->A1_NOME)
+				cCGCCli  :=  If(SA1->A1_TIPO=="F",Transform(SA1->A1_CGC, "@R 999.999.999-99"),Transform(SA1->A1_CGC, "@R 99.999.999/9999-99"))
+				cSacado  :=  cNomeCli + "   " + " CPF/CPNJ: " + cCGCCli
+				cEndSac  :=  ALLTRIM(SA1->A1_END) + "," + ALLTRIM(SA1->A1_BAIRRO)
+				cEndSac1 :=  TRANSFORM(SA1->A1_CEP,"@R 99999-999") + " - " + ALLTRIM(SA1->A1_MUN) + " - " + SA1->A1_EST
+
+				aDatSacado   := { cNomeCli                 ,;   	// [1]Razão Social
+				AllTrim((cTMPSE1)->E1_CLIENTE )+"-"+AllTrim((cTMPSE1)->E1_LOJA) ,;   	// [2]Código
+				STRTRAN(AllTrim(SA1->A1_END),"-"," ")      ,;       // [3]Endereço
+				AllTrim(SA1->A1_MUN)	                   ,;   	// [4]Cidade
+				SA1->A1_EST	                               ,;   	// [5]Estado
+				cvaltochar(val(SA1->A1_CEP))               ,;   	// [6]CEP
+				SA1->A1_CGC								   ,;		// [7]CGC
+				SA1->A1_PESSOA							   ,;       // [8]PESSOA
+				STRTRAN(AllTrim(SA1->A1_BAIRRO),"-"," ")    }       // [9]BAIRRO
+
+				cBase64 := U_BEWS0002("SEGVIA",,,aBancos,1,,,aDados, , , , cCodClie, alltrim(aDadosTit[6])	)
+				cBase64 := Decode64(cBase64)
+				cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
+				cArquivo := cPath+cFilePrint+".PDF"
+				If file(cArquivo)
+					fErase(cArquivo)
+				EndIf
+
+				nHandle := FCreate(cArquivo)
+				FWrite(nHandle,cBase64)
+				FClose(nHandle)
+
+				ShellExecute("open", cFilePrint+".PDF", " /k dir", cPath, 1)
+
+
 			endif
 			(cTMPSE1)->(DbSkip())
 		EndDo
+
 		(cTMPSE1)->(DbCloseArea())
 	ENDIF
 	oCodBco:Refresh()
@@ -1752,6 +1841,7 @@ user function IntegBB(oBancoBB,cCodBco, cCodAge, cCodCta)
 	Local cJsonStr  := ""
 	Local cFile     := '\system\bb'+left(AllTrim(cCodBco),3)+AllTrim(cCodAge)+AllTrim(cCodCta)+'.json'
 	Local lRet      := .t.
+
 	DbSelectArea("SEE")
 	DbSetOrder(1)
 	DbSeek( xFilial("SEE") + PADR(cCodBco,TamSX3("EE_CODIGO")[1]) + PADR(cCodAge,TamSX3("EE_AGENCIA")[1]) + PADR(cCodCta,TamSX3("EE_CONTA")[1]) +  '001',  .T.)
