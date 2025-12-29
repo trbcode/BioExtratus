@@ -18,24 +18,22 @@ Executa baixas dos títulos  Sicoob
 (examples)
 @see (links_or_references)
 /*/
-User Function BEFINM01(cTipo)
+User Function BEFINM01()
 
 	Local aArea     := GetArea()
 	Local lLogin    := Type("cEmpAnt") != "U"
-	Local nX  		  := 0
+	Local nX  		:= 0
 	Local cDatIni   := ""
 	Local cDatFim   := ""
 	Local aBancos   := {}
 	Local aBcoAPI   := {}
 	Local nPOS      := 1
-	Local cBanco   := ""
-	Local cAgencia := " "
-	Local cConta   := "      "
-	Local oBancoBB as Object
-	//Local cHtml			:= ""
-	//Local oSendMail as Object
-	Local lRet 		:= .F.
-	Local dDatabkp    := ctod("")
+	Local cBanco    := ""
+	Local cAgencia  := " "
+	Local cConta    := "      "
+	Local oBancoBB  as Object
+	Local lRet 	    := .F.
+	Local dDatabkp  := ctod("")
 	Private aParBox := {}
 	Private aParRet := {}
 
@@ -43,105 +41,92 @@ User Function BEFINM01(cTipo)
 		RpcSetEnv("01","01","Admin")
 	endif
 
-	if alltrim(cTipo) ==''
-		cTipo := 'BIO'
+	// Banco Siccob
+	cBanco   := "756"
+	cAgencia := "4108 "
+	cConta   := "8429      "
+	cCodClie  := u_getIdClientSicoob(alltrim(cBanco), alltrim(cAgencia), alltrim(cConta)) //"e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
+
+
+	AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
+
+	//Buscando parâmetros de banco  e atualizando o array de bancos
+	dbSelectArea("SEE")
+	dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
+	dbSeek( XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
+
+	aBancos[nPOS][5]	  := alltrim(SEE->EE_DVAGE)
+	aBancos[nPOS][6]    :=  alltrim(SEE->EE_DVCTA)
+	aBancos[nPOS][7]    :=  alltrim(SEE->EE_CONTA) + alltrim(SEE->EE_DVCTA)
+	aBancos[nPOS][8]    :=  alltrim(SEE->EE_CODEMP)
+	aBancos[nPOS][9]    :=  cConta
+	aBancos[nPOS][10]   :=  cAgencia
+	aBancos[nPOS][12]   :=  alltrim(SEE->EE_XXCARTE)
+	aBancos[nPOS][13]   :=  alltrim(SEE->EE_FAXFIM)
+	aBancos[nPOS][15]   :=  SEE->EE_XXTXJUR
+	aBancos[nPOS][16]   :=  SEE->EE_XXTXJDI
+
+	if !IsBlind()
+		if !ValidPerg()
+			Return()
+		endif
+		dDtaBx  := MV_PAR01
+		cDatIni := dtos(dDtaBx)
+		cDatFim := cDatIni
+	else
+		for nX:= 1 to 7
+			if datavalida(DATE()-nX) <> DATE()
+				cDatIni := CVALTOCHAR(YEAR(DATE()-nX))+STRZERO(MONTH(DATE()-nX),2)+STRZERO(DAY(DATE()-nX),2)
+				dDtaBx := DATE()-nX
+				exit
+			endif
+		Next nX
+		cDatFim := cDatIni
 	endif
 
-	IF cTipo == 'BIO'
-		cBanco   := "756"
-		cAgencia := "4108 "
-		cConta   := "8429      "
-		//cCodClie  := "e24ab947-b2b6-4c55-86fb-2662a014a63b"
-		cCodClie  := "e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
-	ELSEIF cTipo == 'FUP'
-		cBanco   := GetMV("MV_XXFUPBA")
-		cAgencia := Padr(GetMV("MV_XXFUPAG"), TamSX3("EE_AGENCIA")[1])
-		cConta   := Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA"	 )[1])
-		cCodClie  := "28477a68-ed9d-43a6-8e97-9a161917e7ca"
+	//Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim, cCodClie)}, "Baixando...")
+	// Fim Banco Siccob
 
-		// FUPROM - Chikas
-	ELSEIF cTipo == 'FUPCHK'
-		cBanco   := GetMV("MV_XXFCHBA")
-		cAgencia := Padr(GetMV("MV_XXFCHAG"), TamSX3("EE_AGENCIA")[1])
-		cConta   := Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
-		cCodClie  := "b7e6001d-1131-4687-a8b5-c7262f146f89"
-	ELSEIF cTipo == 'BB'
-		cBanco	 := "001"
-		dDatabkp  := dDataBase
-		aBcoAPI   := u_GetBcoApi()
+	/********************************************************************************************************************/
 
-		For nX:= 1 to 7
-			if datavalida(DATE()-nX) <> DATE()
-				cDatIni := STRZERO(DAY(DATE()-nX),2)+"."+STRZERO(MONTH(DATE()-nX),2)+"."+CVALTOCHAR(YEAR(DATE()-nX))
-				cDatFim := cDatIni
-				dDataBase := DATE()-nX
-				EXIT
-			EndIf
-		Next nX
+	// Banco do Brasil
+	SLEEP(5000)
+	cBanco	 := "001"
+	dDatabkp  := dDataBase
+	aBcoAPI   := u_GetBcoApi()
 
-		for nX := 1 to Len(aBcoAPI)
-			if aBcoAPI[nX][1] == cBanco
-				oBancoBB := JsonObject():New()
-				cAgencia := Padr(aBcoAPI[nX][3], TamSX3("EE_AGENCIA")[1])
-				cConta   := Padr(aBcoAPI[nX][5], TamSX3("EE_CONTA")[1])
-				U_IntegBB(@oBancoBB,cBanco, cAgencia, cConta)
-				lRet := oBancoBB:recebimentoboletos(cDatIni, cDatFim,"B")
-				IF lRet .and. !empty(oBancoBB:aRecebidosSucesso)
-					// Enviar email de confirmação
-					//cHtml := "<h3>Confirmação de Baixas - Banco do Brasil</h3>"
-					//cHtml += "<p>Prezado(a),</p>"
-					//cHtml += "<p>O processamento de baixas dos boletos do Banco do Brasil foi concluído com sucesso.</p>"
-					//cHtml += "<ul>"
-					//oSendMail := sendMail():New()
-					//oSendMail:Send("Confirmação de Baixas - Banco do Brasil", 'trbcode@gmail.com','iglalguimaraes@gmail.com', cHtml )
-				ENDIF
-				freeObj(oBancoBB)
-				sleep(5000)
-			endif
-		Next nX
-
-		dDataBase  := dDatabkp
-	ENDIF
-
-	if cTipo <> 'BB'
-		AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
-
-		//Buscando parâmetros de banco  e atualizando o array de bancos
-		dbSelectArea("SEE")
-		dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
-		dbSeek( XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
-
-		aBancos[nPOS][5]	  := alltrim(SEE->EE_DVAGE)
-		aBancos[nPOS][6]    :=  alltrim(SEE->EE_DVCTA)
-		aBancos[nPOS][7]    :=  alltrim(SEE->EE_CONTA) + alltrim(SEE->EE_DVCTA)
-		aBancos[nPOS][8]    :=  alltrim(SEE->EE_CODEMP)
-		aBancos[nPOS][9]    :=  cConta
-		aBancos[nPOS][10]   :=  cAgencia
-		aBancos[nPOS][12]   :=  alltrim(SEE->EE_XXCARTE)
-		aBancos[nPOS][13]   :=  alltrim(SEE->EE_FAXFIM)
-		aBancos[nPOS][15]   :=  SEE->EE_XXTXJUR
-		aBancos[nPOS][16]   :=  SEE->EE_XXTXJDI
-
-		if !IsBlind()
-			if !ValidPerg()
-				Return()
-			endif
-			dDtaBx  := MV_PAR01
-			cDatIni := dtos(dDtaBx)
+	For nX:= 1 to 7
+		if datavalida(DATE()-nX) <> DATE()
+			cDatIni := STRZERO(DAY(DATE()-nX),2)+"."+STRZERO(MONTH(DATE()-nX),2)+"."+CVALTOCHAR(YEAR(DATE()-nX))
 			cDatFim := cDatIni
-		else
-			for nX:= 1 to 7
-				if datavalida(DATE()-nX) <> DATE()
-					cDatIni := CVALTOCHAR(YEAR(DATE()-nX))+STRZERO(MONTH(DATE()-nX),2)+STRZERO(DAY(DATE()-nX),2)
-					dDtaBx := DATE()-nX
-					exit
-				endif
-			Next nX
-			cDatFim := cDatIni
+			dDataBase := DATE()-nX
+			EXIT
+		EndIf
+	Next nX
+
+	for nX := 1 to Len(aBcoAPI)
+		if aBcoAPI[nX][1] == cBanco
+			oBancoBB := JsonObject():New()
+			cAgencia := Padr(aBcoAPI[nX][3], TamSX3("EE_AGENCIA")[1])
+			cConta   := Padr(aBcoAPI[nX][5], TamSX3("EE_CONTA")[1])
+			U_IntegBB(@oBancoBB,cBanco, cAgencia, cConta)
+			lRet := oBancoBB:recebimentoboletos(cDatIni, cDatFim,"B")
+			IF lRet .and. !empty(oBancoBB:aRecebidosSucesso)
+				// Enviar email de confirmação
+				//cHtml := "<h3>Confirmação de Baixas - Banco do Brasil</h3>"
+				//cHtml += "<p>Prezado(a),</p>"
+				//cHtml += "<p>O processamento de baixas dos boletos do Banco do Brasil foi concluído com sucesso.</p>"
+				//cHtml += "<ul>"
+				//oSendMail := sendMail():New()
+				//oSendMail:Send("Confirmação de Baixas - Banco do Brasil", 'trbcode@gmail.com','iglalguimaraes@gmail.com', cHtml )
+			ENDIF
+			freeObj(oBancoBB)
+			sleep(5000)
 		endif
+	Next nX
 
-		Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim, cCodClie)}, "Baixando...")
-	EndIf
+	dDataBase  := dDatabkp
+	// Fim Banco do Brasil
 	RestArea(aArea)
 return()
 

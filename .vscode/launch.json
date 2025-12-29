@@ -38,8 +38,6 @@
 			"label": "U_BEFINM01"
 		}
 	],
-	"lastProgramExecuted": "SIGAMDI",
-	"lastProgramArguments": [
-		"BB"
-	]
+	"lastProgramExecuted": "U_BEFINM01",
+	"lastProgramArguments": []
 }
