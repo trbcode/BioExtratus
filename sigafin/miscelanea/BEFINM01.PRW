@@ -85,7 +85,7 @@ User Function BEFINM01()
 		cDatFim := cDatIni
 	endif
 
-	//Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim, cCodClie)}, "Baixando...")
+	Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim, cCodClie)}, "Baixando...")
 	// Fim Banco Siccob
 
 	/********************************************************************************************************************/
