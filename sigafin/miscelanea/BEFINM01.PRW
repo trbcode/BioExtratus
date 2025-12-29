@@ -41,12 +41,13 @@ User Function BEFINM01()
 		RpcSetEnv("01","01","Admin")
 	endif
 
+	dDatabkp  := dDataBase
+
 	// Banco Siccob
 	cBanco   := "756"
 	cAgencia := "4108 "
 	cConta   := "8429      "
 	cCodClie  := u_getIdClientSicoob(alltrim(cBanco), alltrim(cAgencia), alltrim(cConta)) //"e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
-
 
 	AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
 
@@ -91,18 +92,23 @@ User Function BEFINM01()
 
 	// Banco do Brasil
 	SLEEP(5000)
-	cBanco	 := "001"
-	dDatabkp  := dDataBase
-	aBcoAPI   := u_GetBcoApi()
 
-	For nX:= 1 to 7
-		if datavalida(DATE()-nX) <> DATE()
-			cDatIni := STRZERO(DAY(DATE()-nX),2)+"."+STRZERO(MONTH(DATE()-nX),2)+"."+CVALTOCHAR(YEAR(DATE()-nX))
-			cDatFim := cDatIni
-			dDataBase := DATE()-nX
-			EXIT
-		EndIf
-	Next nX
+	cBanco	   := "001"
+	aBcoAPI    := u_GetBcoApi()
+	if !IsBlind() .and. !Empty(MV_PAR01)
+		dDataBase  := MV_PAR01
+		cDatIni    := STRZERO(DAY(MV_PAR01),2)+"."+STRZERO(MONTH(MV_PAR01),2)+"."+CVALTOCHAR(YEAR(MV_PAR01))
+		cDatFim    := cDatIni
+	else
+		For nX:= 1 to 7
+			if datavalida(DATE()-nX) <> DATE()
+				cDatIni   := STRZERO(DAY(DATE()-nX),2)+"."+STRZERO(MONTH(DATE()-nX),2)+"."+CVALTOCHAR(YEAR(DATE()-nX))
+				cDatFim   := cDatIni
+				dDataBase := DATE()-nX
+				EXIT
+			EndIf
+		Next nX
+	endif
 
 	for nX := 1 to Len(aBcoAPI)
 		if aBcoAPI[nX][1] == cBanco
@@ -124,7 +130,10 @@ User Function BEFINM01()
 			sleep(5000)
 		endif
 	Next nX
-
+	IF !IsBlind()
+		cMsg := '<font color="#269426ff" size="4">Processamento de baixas finalizado com sucesso!</font>' + '<br>'
+		FWAlertSuccess(cMsg , "Processamento Baixas Automática - BEFINM01")
+	ENDIF
 	dDataBase  := dDatabkp
 	// Fim Banco do Brasil
 	RestArea(aArea)
