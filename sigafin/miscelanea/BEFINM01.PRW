@@ -116,7 +116,7 @@ User Function BEFINM01()
 			cAgencia := Padr(aBcoAPI[nX][3], TamSX3("EE_AGENCIA")[1])
 			cConta   := Padr(aBcoAPI[nX][5], TamSX3("EE_CONTA")[1])
 			U_IntegBB(@oBancoBB,cBanco, cAgencia, cConta)
-			lRet := oBancoBB:recebimentoboletos(cDatIni, cDatFim,"B")
+			lRet := oBancoBB:recebimentoboletos(cDatIni, cDatFim,"B",0.00)
 			IF lRet .and. !empty(oBancoBB:aRecebidosSucesso)
 				// Enviar email de confirmação
 				//cHtml := "<h3>Confirmação de Baixas - Banco do Brasil</h3>"
