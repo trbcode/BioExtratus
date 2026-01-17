@@ -56,7 +56,7 @@ User Function BIOFIN03(cTpBol)
 	Private cTipo		:= Alltrim(cTpBol)
 	Private aBancos   	:= {}     //Array usado em todas as funções que conterá dados do banco selecionado
 	Private aDados[43]            //Array usado para receber os dados do boleto atual
-	Private cTitulos              //Titulos que foram selecionados
+	Private cTitulos    := ""          //Titulos que foram selecionados
 	Private cMarc    	:= ""     //Titulos marcados
 	Private aRotina  	:= MenuDef()
 	Private lLogin      := Type("cEmpAnt") != "U"
@@ -166,7 +166,7 @@ Static Function MenuDef()
 	ADD OPTION aRotina TITLE 'Verificar NCC'   	ACTION 'U_VerNCC()'     OPERATION 3 ACCESS 0
 	ADD OPTION aRotina TITLE 'Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .F.  )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
-	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie )'    OPERATION 1 ACCESS 0
+	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie, cTitulos )'    OPERATION 1 ACCESS 0
 	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
 	ADD OPTION aRotina TITLE 'Imprime Boleto'	ACTION 'U_ImpBoleto(cCodBco)'   OPERATION 1 ACCESS 0// */
 
@@ -716,7 +716,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 
 			//Chamando o método de impressão passando o array de Dados
 			if cPrint .and. cBanco <> "001"
-				u_printBolet(aDados, aBancos, nPOS, oPrn,cbanco)
+				u_printBolet(aDados, aBancos, nPOS, @oPrn,cbanco)
 			endif
 			oPrn:EndPage()
 		endif
@@ -1164,7 +1164,7 @@ description
 @since 8/16/2024
 @return variant, return_description
 /*/
-User Function BOLCANC(cCodClie)
+User Function BOLCANC(cCodClie, cTitulos)
 
 	Local nX
 	Local cMsgMail	:= ""
@@ -1175,14 +1175,14 @@ User Function BOLCANC(cCodClie)
 	private oBancoBB as Object
 	AADD(aBancos, { "756","SICOOB",          "756.bmp"    , "756-0",,,,,,,,"",,,,})
 	//Busca os títulos selecionados para cancelamento
+	cTitulos := ""
 	If Len(cMarc) > 0
-
 		If  SUBSTR(cMarc,len(cMarc),Len(cMarc)-1) == ","
 			if Right( cMarc, 1 ) == ","
 				cMarc := SUBSTR(cMarc,1,Len(cMarc)-1) //Retira a virgula
 			endif
 		Endif
-
+		cTitulos := cMarc
 	Else
 		cMarc := ""
 		MsgInfo("05 - Selecione os boletos que deseja cancelar!", "ATENCAO!")
@@ -1628,7 +1628,10 @@ User Function ImpBoleto(cCodBco)
 	Local aMensagem  := {}
 	Local cBanco     := Left(cCodBco,3)
 	Local aBcosApi   := u_GetBcoApi(cBanco, cCodAge, cCodCta)
-
+	Local cBase64    := ""
+	Local cArquivo   := ""
+	Local lGeraLocal := .F.
+	Local nHandle	 := 0
 	If Len(cMarc) > 0
 		If  SUBSTR(cMarc,len(cMarc),Len(cMarc)-1) == ","
 			if Right( cMarc, 1 ) == ","
@@ -1735,11 +1738,28 @@ User Function ImpBoleto(cCodBco)
 				aBcosApi[1][10],; // 16 - Juros por Dia
 				aBcosApi[1][13]}) // 17 - Dias para Protesto
 
+				cBase64 := U_BEWS0002("SEGVIA",,,aBancos,1,,,aDados, , , , cCodClie, alltrim(aDadosTit[6])	)
+				if Alltrim("erro") $ cBase64
+					lGeraLocal := MsgYesNo("Houve falha na comunicação com o Sicoob!" + CRLF + "Deseja gerar o boleto localmente?", "BIOFIN03-Atenção!")
+				else
+					cBase64 := Decode64(cBase64)
+					cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
+					cArquivo := cPath+cFilePrint+".PDF"
+					If file(cArquivo)
+						fErase(cArquivo)
+					EndIf
+
+					nHandle := FCreate(cArquivo)
+					FWrite(nHandle,cBase64)
+					FClose(nHandle)
+
+					ShellExecute("open", cFilePrint+".PDF", " /k dir", cPath, 1)
+				endif
 			endif
 			(cTMPSE1)->(DbSkip())
 		EndDo
 
-		if cbanco == "756"
+		if cbanco == "756" .and. lGeraLocal
 			U_BOLGERA( cBanco,  cCodAge, cCodCta, cCodClie, .T.   )
 		endif
 
