@@ -492,7 +492,7 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 			freeObj(oResp)
 			Return cPdf
 		ELSE
-			cPdf := "Boleto jah foi pago ou registrado com erro!"
+			cPdf := "Boleto já foi pago ou registrado com erro!"
 			Return cPdf
 		ENDIF
 
