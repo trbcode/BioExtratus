@@ -264,6 +264,8 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	Local auxJur       :=""
 	local aDadosTit    := {}
 	local aDatSacado   := {}
+	Local cPathCli	   := ""
+	Local cStamp := DToS(Date()) + "_" + StrTran(Time(),":","")
 	private aDadosEmp  := {}
 	private cPerg2	   := "BIOFIN03"
 	private cFilePrint := ""
@@ -272,7 +274,6 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	if left(alltrim(cCodBco),3) == "001"
 		U_IntegBB(@oBancoBB,cBanco, cCodAge, cCodCta)
 	endif
-
 	IF SE1->E1_XXBOIMP <> 'S' .AND. SM0->M0_CODIGO == '01'
 		//Procura se o banco selecionado está no array de bancos com boletos desenvolvidos e retorna os dados do banco
 		setBanc()   //Seta o array de bancos
@@ -374,11 +375,21 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	aBancos[nPOS][17] 	:= nDiasLim
 
 	If EMPTY(cFilePrint)
-		cFilePrint := "BOL_" + Alltrim(QRY->E1_PREFIXO)+"_" + Alltrim(QRY->E1_NUM) + Alltrim(QRY->E1_PARCELA) + Alltrim(QRY->E1_TIPO)  + "_" + AllTrim(QRY->E1_CLIENTE) + "_" + AllTrim(QRY->E1_LOJA)
+		cFilePrint := "BOL_" + AllTrim(QRY->E1_CLIENTE) + "_" + AllTrim(QRY->E1_LOJA) + "_" + cStamp+".pdf"
 	EndIf
 
-	oPrn := FWMSPrinter():New(cFilePrint + ".PDF",IMP_PDF,.T.,,.T.)
+	cPathCli := GetTempPath() + "totvsprinter\"
+	//cPathCli := "C:\temp\"
+	oPrn := FWMSPrinter():New(cFilePrint,IMP_PDF,.T.,cPathCli,.T.)
+	oPrn:cPathPDF := cPathCli
+	
 
+	//oPrn := FWMSPrinter():New(cFilePrint, IMP_PDF, .T., '', .T., .F., , , .T., .T., , .F.)
+	//oPrn:cPathPDF := cPathCli
+	//oPrn:cFilePrint:= oPrn:cPathPrint + cFilePrint
+
+
+	//oPrn:SetViewPDF(.T.)
 	bPulou := .F.
 
 	aDadosEmp := {	Alltrim(SM0->M0_NOMECOM)                                               ,; //[1]Nome da Empresa
@@ -611,9 +622,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 			//Montando o array com dados do título para o arry de Dados do boleto
 			//Linha  A do Boleto
 			aDados[1] := aBancos[nPOS][3]                           // Arquivo de logotipo bmp na pasta SYSTEM
-
 			oPrn:StartPage()
-
 			//Buscando dados do cedente   - busca da tabela de empresas SM0
 			cNomeCed	:= SUBS (SM0->M0_NOMECOM,1,35) +  "  CNPJ: " + TRANSFORM(SM0->M0_CGC, "@R 99.999.999/9999-99")
 			cEndCed		:= alltrim(SM0->M0_ENDCOB) + ' , ' + alltrim(SM0->M0_BAIRCOB) + ' , ' + alltrim(SM0->M0_CIDCOB);
@@ -733,6 +742,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 
 	if cPrint .and. cBanco <> "001"
 		oPrn:Preview()
+		FwFreeObj(oPrn)
 	endif
 	if cPrint .and. cBanco == "001"
 		U_ImpBoleto(cBanco)
@@ -1740,7 +1750,7 @@ User Function ImpBoleto(cCodBco)
 
 				cBase64 := U_BEWS0002("SEGVIA",,,aBancos,1,,,aDados, , , , cCodClie, alltrim(aDadosTit[6])	)
 				if Alltrim("erro") $ cBase64
-					lGeraLocal := MsgYesNo("Houve falha na comunicação com o Sicoob!" + CRLF + "Deseja gerar o boleto localmente?", "BIOFIN03-Atenção!")
+					lGeraLocal := MsgYesNo("Houve falha na comunicação com o Sicoob!" + CRLF + "Deseja gerar o boleto dados atuais?", "BIOFIN03-Atenção!")
 				else
 					cBase64 := Decode64(cBase64)
 					cFilePrint := strtran("BOL_" + Alltrim((cTMPSE1)->E1_PREFIXO)+"_" + Alltrim((cTMPSE1)->E1_NUM) + Alltrim((cTMPSE1)->E1_PARCELA) + Alltrim((cTMPSE1)->E1_TIPO)  + "_" + AllTrim((cTMPSE1)->E1_CLIENTE) + "_" + AllTrim((cTMPSE1)->E1_LOJA)+"_"+dtos(date())+"_"+time(),":","")
