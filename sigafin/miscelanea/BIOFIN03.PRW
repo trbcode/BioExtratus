@@ -167,7 +167,7 @@ Static Function MenuDef()
 	ADD OPTION aRotina TITLE 'Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .F.  )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie, cTitulos )'    OPERATION 1 ACCESS 0
-	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
+	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'U_COMPNCC(cMarc)'      OPERATION 6 ACCESS 0
 	ADD OPTION aRotina TITLE 'Imprime Boleto'	ACTION 'U_ImpBoleto(cCodBco)'   OPERATION 1 ACCESS 0// */
 
 	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
@@ -382,7 +382,7 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 	//cPathCli := "C:\temp\"
 	oPrn := FWMSPrinter():New(cFilePrint,IMP_PDF,.T.,cPathCli,.T.)
 	oPrn:cPathPDF := cPathCli
-	
+
 
 	//oPrn := FWMSPrinter():New(cFilePrint, IMP_PDF, .T., '', .T., .F., , , .T., .T., , .F.)
 	//oPrn:cPathPDF := cPathCli
@@ -1923,3 +1923,72 @@ Static Function ClearMarksSE1(cRecList)
 
 	RestArea(aArea)
 Return Nil
+
+/*/{Protheus.doc} COMPNCC
+Valida se o título foi registrado no banco para abrir a tela de compensação
+@type function
+@version 1.0
+@author Igor Guimarães
+@since 1/20/2026
+@param cMarc, character, lista de registros selecionados
+/*/
+User Function COMPNCC(cMarc)
+
+	Local aArea  := GetArea()
+	Local _cCodfil   := xFilial("SE1")
+	Local _cFiltro   := ""
+	Local cTMPSE1    := GetNextAlias()
+	Local lBolReg    := .F.
+
+	If Len(cMarc) > 0
+		If  SUBSTR(cMarc,len(cMarc),Len(cMarc)-1) == ","
+			if Right( cMarc, 1 ) == ","
+				cMarc := SUBSTR(cMarc,1,Len(cMarc)-1) //Retira a virgula
+			endif
+		Endif
+	Else
+		cMarc := ""
+		MsgInfo("02 - Selecione algum título para impressão dos boletos!", "ATENCAO!")
+		return
+	endif
+
+	IF !Empty(cMarc)
+		_cFiltro := " SE1.R_E_C_N_O_ IN ( " + cMarc + " )"
+		_cFiltro := "% " + _cFiltro + " %"
+		BeginSql Alias cTMPSE1
+			SELECT SE1.E1_PARCELA, 
+				SE1.E1_PREFIXO, 
+				SE1.E1_NUM, 
+				SE1.E1_TIPO, 
+				SE1.E1_CLIENTE, 
+				SE1.E1_LOJA, 
+				SE1.E1_VENCTO, 
+				SE1.E1_EMISSAO,
+				SE1.E1_NOSNUM,
+				SE1.E1_NUMBCO,
+				SE1.E1_SALDO,
+				SE1.E1_ACRESC,
+				SE1.E1_DECRESC
+			from %table:SE1% SE1
+			where SE1.E1_FILIAL = %Exp:_cCodfil%
+			AND ( %Exp:_cFiltro% )
+			ORDER BY E1_NUM, E1_PARCELA
+		EndSql
+
+		WHILE (cTMPSE1)->(!Eof()) .AND. lBolReg == .F.
+			SE1->(DbSetorder(1))
+			SE1->(DbSeek( xFilial("SE1") + (cTMPSE1)->E1_PREFIXO + (cTMPSE1)->E1_NUM + (cTMPSE1)->E1_PARCELA + (cTMPSE1)->E1_TIPO ))
+			if !Empty(Alltrim(SE1->E1_CODBAR)) .and. !Empty(Alltrim(SE1->E1_PORTADO))
+				lBolReg := .T.
+			endif
+			(cTMPSE1)->(DbSkip())
+		EndDo
+	endif
+	if lBolReg
+		MsgInfo("O título já foi registrado no Banco, não é permitido a compensação!", "Atenção!")
+	else
+		FINA330() // Compensação NCC
+	endIf
+	(cTMPSE1)->(DbCloseArea())
+	RestArea(aArea)
+Return
