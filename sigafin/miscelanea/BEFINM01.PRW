@@ -38,61 +38,61 @@ User Function BEFINM01()
 	Private aParRet := {}
 
 	if !lLogin
-		RpcSetEnv("01","01","Admin")
+		RpcSetEnv("20","01","Admin")
 	endif
 
 	dDatabkp  := dDataBase
+	if cEmpAnt == "01"
+		// Banco Siccob
+		cBanco   := "756"
+		cAgencia := "4108 "
+		cConta   := "8429      "
+		cCodClie  := u_getIdClientSicoob(alltrim(cBanco), alltrim(cAgencia), alltrim(cConta)) //"e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
 
-	// Banco Siccob
-	cBanco   := "756"
-	cAgencia := "4108 "
-	cConta   := "8429      "
-	cCodClie  := u_getIdClientSicoob(alltrim(cBanco), alltrim(cAgencia), alltrim(cConta)) //"e227419d-ce16-43c0-ac2e-a64cea1bd6d5"
+		AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
 
-	AADD(aBancos, { "756","SICOOB","756.bmp","756-0",,,,,,,,"",,,,})    //Sicoob
+		//Buscando parâmetros de banco  e atualizando o array de bancos
+		dbSelectArea("SEE")
+		dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
+		dbSeek( XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
 
-	//Buscando parâmetros de banco  e atualizando o array de bancos
-	dbSelectArea("SEE")
-	dbSetOrder(1)   // EE_FILIAL  	+ EE_CODIGO + EE_AGENCIA + EE_CONTA +   EE_SUBCTA
-	dbSeek( XFILIAL("SEE")	+ cBanco    + cAgencia   + cConta   +  '001',     .T.)
+		aBancos[nPOS][5]	  := alltrim(SEE->EE_DVAGE)
+		aBancos[nPOS][6]    :=  alltrim(SEE->EE_DVCTA)
+		aBancos[nPOS][7]    :=  alltrim(SEE->EE_CONTA) + alltrim(SEE->EE_DVCTA)
+		aBancos[nPOS][8]    :=  alltrim(SEE->EE_CODEMP)
+		aBancos[nPOS][9]    :=  cConta
+		aBancos[nPOS][10]   :=  cAgencia
+		aBancos[nPOS][12]   :=  alltrim(SEE->EE_XXCARTE)
+		aBancos[nPOS][13]   :=  alltrim(SEE->EE_FAXFIM)
+		aBancos[nPOS][15]   :=  SEE->EE_XXTXJUR
+		aBancos[nPOS][16]   :=  SEE->EE_XXTXJDI
 
-	aBancos[nPOS][5]	  := alltrim(SEE->EE_DVAGE)
-	aBancos[nPOS][6]    :=  alltrim(SEE->EE_DVCTA)
-	aBancos[nPOS][7]    :=  alltrim(SEE->EE_CONTA) + alltrim(SEE->EE_DVCTA)
-	aBancos[nPOS][8]    :=  alltrim(SEE->EE_CODEMP)
-	aBancos[nPOS][9]    :=  cConta
-	aBancos[nPOS][10]   :=  cAgencia
-	aBancos[nPOS][12]   :=  alltrim(SEE->EE_XXCARTE)
-	aBancos[nPOS][13]   :=  alltrim(SEE->EE_FAXFIM)
-	aBancos[nPOS][15]   :=  SEE->EE_XXTXJUR
-	aBancos[nPOS][16]   :=  SEE->EE_XXTXJDI
-
-	if !IsBlind()
-		if !ValidPerg()
-			Return()
-		endif
-		dDtaBx  := MV_PAR01
-		cDatIni := dtos(dDtaBx)
-		cDatFim := cDatIni
-	else
-		for nX:= 1 to 7
-			if datavalida(DATE()-nX) <> DATE()
-				cDatIni := CVALTOCHAR(YEAR(DATE()-nX))+STRZERO(MONTH(DATE()-nX),2)+STRZERO(DAY(DATE()-nX),2)
-				dDtaBx := DATE()-nX
-				exit
+		if !IsBlind()
+			if !ValidPerg()
+				Return()
 			endif
-		Next nX
-		cDatFim := cDatIni
+			dDtaBx  := MV_PAR01
+			cDatIni := dtos(dDtaBx)
+			cDatFim := cDatIni
+		else
+			for nX:= 1 to 7
+				if datavalida(DATE()-nX) <> DATE()
+					cDatIni := CVALTOCHAR(YEAR(DATE()-nX))+STRZERO(MONTH(DATE()-nX),2)+STRZERO(DAY(DATE()-nX),2)
+					dDtaBx := DATE()-nX
+					exit
+				endif
+			Next nX
+			cDatFim := cDatIni
+		endif
+
+		Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim, cCodClie)}, "Baixando...")
+		// Fim Banco Siccob
+
+		/********************************************************************************************************************/
+
+		// Banco do Brasil
+		SLEEP(5000)
 	endif
-
-	Processa({|| U_BEWS0002("BAI",,,aBancos,nPOS,,,,dDtaBx,cDatIni,cDatFim, cCodClie)}, "Baixando...")
-	// Fim Banco Siccob
-
-	/********************************************************************************************************************/
-
-	// Banco do Brasil
-	SLEEP(5000)
-
 	cBanco	   := "001"
 	aBcoAPI    := u_GetBcoApi()
 	if !IsBlind() .and. !Empty(MV_PAR01)
