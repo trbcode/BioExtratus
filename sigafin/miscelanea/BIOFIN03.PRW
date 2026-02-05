@@ -167,8 +167,8 @@ Static Function MenuDef()
 	ADD OPTION aRotina TITLE 'Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .F.  )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Imprimir e Enviar ao Banco'   	ACTION 'U_BOLGERA( cCodBco,  cCodAge, cCodCta, cCodClie, .T.   )'    OPERATION 2 ACCESS 0
 	ADD OPTION aRotina TITLE 'Cancelar Boletos'	ACTION 'U_BOLCANC( cCodClie, cTitulos )'    OPERATION 1 ACCESS 0
-	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'U_COMPNCC(cMarc)'      OPERATION 6 ACCESS 0
-	ADD OPTION aRotina TITLE 'Imprime Boleto'	ACTION 'U_ImpBoleto(cCodBco)'   OPERATION 1 ACCESS 0// */
+	ADD OPTION aRotina TITLE 'Compensar NCC'    ACTION 'FINA330()'      OPERATION 6 ACCESS 0
+	ADD OPTION aRotina TITLE 'Imprime Boleto'	ACTION 'U_ImpBoleto(cCodBco)'   OPERATION 1 ACCESS 0
 
 	ADD OPTION aRotina TITLE "Visualizações" ACTION aSubMnu OPERATION 9 ACCESS 0
 	ADD OPTION aSubMnu TITLE 'Todos'        	ACTION 'U_BOLTODOS()'   OPERATION 3 ACCESS 0
