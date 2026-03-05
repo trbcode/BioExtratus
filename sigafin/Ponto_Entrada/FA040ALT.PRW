@@ -7,10 +7,10 @@
 O ponto de entrada F040ALT valida os dados da altera��o apos a confirma��o da mesma.
 
 @type function
-@version  
+@version 1.0  
 @author iglal
 @since 10/2/2024
-@return variant, return_description
+@return logical, lRet, se houve sucesso 
 /*/
 user function FA040ALT()
 

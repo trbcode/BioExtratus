@@ -222,6 +222,7 @@ description
 /*/
 User Function BOLTODOS()
 	GetFilter(cCodBco)
+	ClearMarksSE1(cMarc)
 	cMarc := ""
 	oMark:CleanFilter()
 	oMark:SetFilterDefault(cTodos)
@@ -589,11 +590,15 @@ User Function BOLGERA(cBanco,  cAgencia, cConta, cCodClie, cPrint )
 				FWJsonDeserialize(cResult,@oResultado)
 				lRet := .t.
 			Else
-				cResult := oBancoBB:cResult
-				If AttIsMemberOf(cResult, "ERROS")
-					FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + Decodeutf8(cResult:ERROS[1]['MENSAGEM']), "Integração Banco do Brasil")
-				Else
-					FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + '', "Integração Banco do Brasil")
+				if valtype(oBancoBB:cResult) <> "U"
+					cResult := oBancoBB:cResult
+					If AttIsMemberOf(cResult, "ERROS")
+						FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + Decodeutf8(cResult:ERROS[1]['MENSAGEM']), "Integração Banco do Brasil")
+					Else
+						FWAlertError("Erro ao registrar boleto no Banco do Brasil: ("+QRY->E1_PREFIXO+"-"+ QRY->E1_NUM +"/"+ QRY->E1_PARCELA +") - " + '', "Integração Banco do Brasil")
+					EndIf
+				else
+					FWAlertError("Falha na comunicação com o Banco do Brasil, favor tentar mais tarde!", "BIOFIN13 - Atenção!")
 				EndIf
 				return
 			Endif
@@ -1521,6 +1526,9 @@ Static function GetBancos()
 			cNomeBco := Alltrim((cTMPSEE)->A6_NOME)
 			aadd(aBcoApt, {Alltrim(EE_CODIGO) +" - "+ Padr(Alltrim((cTMPSEE)->EE_AGENCIA),TamSX3("EE_AGENCIA")[1]) + Padr(Alltrim((cTMPSEE)->EE_DVAGE),TamSX3("EE_DVAGE")[1]) + " - "+ Padr(Alltrim((cTMPSEE)->EE_CONTA),TamSX3("EE_CONTA")[1]) +  Padr(Alltrim((cTMPSEE)->EE_DVCTA),TamSX3("EE_DVCTA")[1]) + " - " + Padr(Alltrim((cTMPSEE)->A6_NOME),TamSX3("A6_NOME")[1]),1} )
 		else
+			cCodAge := Alltrim((cTMPSEE)->EE_AGENCIA)
+			cCodCta := Alltrim((cTMPSEE)->EE_CONTA)
+			cNomeBco := Alltrim((cTMPSEE)->A6_NOME)
 			aadd(aBcoApt, {Alltrim(EE_CODIGO) +" - "+ Padr(Alltrim((cTMPSEE)->EE_AGENCIA),TamSX3("EE_AGENCIA")[1]) + Padr(Alltrim((cTMPSEE)->EE_DVAGE),TamSX3("EE_DVAGE")[1]) + " - "+ Padr(Alltrim((cTMPSEE)->EE_CONTA),TamSX3("EE_CONTA")[1]) +  Padr(Alltrim((cTMPSEE)->EE_DVCTA),TamSX3("EE_DVCTA")[1]) + " - " + Padr(Alltrim((cTMPSEE)->A6_NOME),TamSX3("A6_NOME")[1]),nIndex} )
 		endif
 
@@ -1543,40 +1551,49 @@ Filtra os títulos conforme o banco selecionado
 @param cCodBco, character, código do banco para filtro
 /*/
 Static function GetFilter(cCodBco)
-	// Conta PAC - Bio Extratus - Banco do Brasil (356)
-	if Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr("356", TamSX3("EE_CONTA")[1]) // Padr(GetMV("MV_XXPACCC"), TamSX3("EE_CONTA")[1]) **RETIRAR COMENTÁRIO QUANDO CONTA BB FOR DESATIVADA**
 
-		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO == 'PAC' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		cTodos	 := "E1_NATUREZ <> '1020003' .AND. E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'PAC' .AND. ((E1_PORTADO == '001' .AND. E1_CONTA = '356') .OR. E1_PORTADO == ' ') .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		//cTodos   := "E1_NATUREZ <> '1020003' .AND. E1_XXGRBOL <> '2' .AND. E1_PREFIXO = 'PAC' .AND. E1_VALOR <> '1.00' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'" -- ENVIADO PELO Maycon
-		cFilBB   := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO == 'PAC' .AND. E1_PORTADO == '001' .AND. E1_TIPO == 'BOL'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'  .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		// Conta PAC - Chikas - Banco do Brasil (16583)
-	ElseIf Padr(AllTrim(cCodCta), TamSX3("EE_CONTA")[1]) == Padr("16583", TamSX3("EE_CONTA")[1])
-		// Não impressos
-		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO = 'PAC' .AND. E1_VALOR <> '1.00' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		// Todos
-		cTodos   := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO = 'PAC' .AND. ((E1_PORTADO == '001' .AND. E1_CONTA = '16583') .OR. E1_PORTADO == ' ') .AND. E1_VALOR <> '1.00' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		// Venda de Produto - Todas as Marcas - Sicoob (8429)
-	Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr("8429", TamSX3("EE_CONTA")[1])
+	if cEmpant == "20"
 
-		cCodClie := u_getIdClientSicoob(alltrim(cCodBco), alltrim(cCodAge), alltrim(cCodCta)) //"0735841c-a2c7-411d-96e3-5361c5090d77"
-		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		cTodos   := "E1_NATUREZ <> '1020003' .AND. E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. ((E1_PORTADO == '756' .AND. E1_CONTA = '8429') .OR. E1_PORTADO == ' ') .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_XXBOIMP <> 'S' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_FILIAL = '" + xFilial("SE1")+"'"
+		cTodos	 := "E1_XXGRBOL <> '2' .AND. (E1_PORTADO == '001' .OR. E1_PORTADO == ' ') .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_FILIAL = '" + xFilial("SE1")+"'"
+		cFilBB   := "E1_XXGRBOL <> '2' .AND. E1_PORTADO == '001' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'  .and. E1_FILIAL = '" + xFilial("SE1")+"'"
 
-		// FUPROM - Bio Extratus - Sicoob (16068)
-	Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA")[1])
+	else
+		// Conta PAC - Bio Extratus - Banco do Brasil (356)
+		if Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr("356", TamSX3("EE_CONTA")[1]) // Padr(GetMV("MV_XXPACCC"), TamSX3("EE_CONTA")[1]) **RETIRAR COMENTÁRIO QUANDO CONTA BB FOR DESATIVADA**
 
-		cCodClie := u_getIdClientSicoob(alltrim(cCodBco), alltrim(cCodAge), alltrim(cCodCta)) //"d82e28ee-a646-421f-977c-4e6dfc57727f"
-		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		cTodos   := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .AND. ((E1_PORTADO == '756' .AND. E1_CONTA = '16068') .OR. E1_PORTADO == ' ') .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO == 'PAC' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			cTodos	 := "E1_NATUREZ <> '1020003' .AND. E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'PAC' .AND. ((E1_PORTADO == '001' .AND. E1_CONTA = '356') .OR. E1_PORTADO == ' ') .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			//cTodos   := "E1_NATUREZ <> '1020003' .AND. E1_XXGRBOL <> '2' .AND. E1_PREFIXO = 'PAC' .AND. E1_VALOR <> '1.00' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'" -- ENVIADO PELO Maycon
+			cFilBB   := "E1_XXGRBOL <>'2' .AND. E1_PREFIXO == 'PAC' .AND. E1_PORTADO == '001' .AND. E1_TIPO == 'BOL'.AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'  .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			// Conta PAC - Chikas - Banco do Brasil (16583)
+		ElseIf Padr(AllTrim(cCodCta), TamSX3("EE_CONTA")[1]) == Padr("16583", TamSX3("EE_CONTA")[1])
+			// Não impressos
+			cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO = 'PAC' .AND. E1_VALOR <> '1.00' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			// Todos
+			cTodos   := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_PREFIXO = 'PAC' .AND. ((E1_PORTADO == '001' .AND. E1_CONTA = '16583') .OR. E1_PORTADO == ' ') .AND. E1_VALOR <> '1.00' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			// Venda de Produto - Todas as Marcas - Sicoob (8429)
+		Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr("8429", TamSX3("EE_CONTA")[1])
 
-		// FUPROM - Chikas - Sicoob (39380)
-	Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
+			cCodClie := u_getIdClientSicoob(alltrim(cCodBco), alltrim(cCodAge), alltrim(cCodCta)) //"0735841c-a2c7-411d-96e3-5361c5090d77"
+			cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_NATUREZ <> '1020003' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			cTodos   := "E1_NATUREZ <> '1020003' .AND. E1_TIPO == 'NF' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. ((E1_PORTADO == '756' .AND. E1_CONTA = '8429') .OR. E1_PORTADO == ' ') .and. E1_FILIAL = '" + xFilial("SE1")+"'"
 
-		cCodClie := u_getIdClientSicoob(alltrim(cCodBco), alltrim(cCodAge), alltrim(cCodCta)) //"5c686c4b-270d-41ca-b8f3-8145713c0d33"
-		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
-		cTodos   := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .AND. ((E1_PORTADO == '756' .AND. E1_CONTA = '39380') .OR. E1_PORTADO == ' ') .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			// FUPROM - Bio Extratus - Sicoob (16068)
+		Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr(GetMV("MV_XXFUPCC"), TamSX3("EE_CONTA")[1])
 
+			cCodClie := u_getIdClientSicoob(alltrim(cCodBco), alltrim(cCodAge), alltrim(cCodCta)) //"d82e28ee-a646-421f-977c-4e6dfc57727f"
+			cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			cTodos   := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C' .AND. ((E1_PORTADO == '756' .AND. E1_CONTA = '16068') .OR. E1_PORTADO == ' ') .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+
+			// FUPROM - Chikas - Sicoob (39380)
+		Elseif Padr(AllTrim(cCodCta), TamSX3("EE_CONTA"	 )[1]) == Padr(GetMV("MV_XXFCHCC"), TamSX3("EE_CONTA")[1])
+
+			cCodClie := u_getIdClientSicoob(alltrim(cCodBco), alltrim(cCodAge), alltrim(cCodCta)) //"5c686c4b-270d-41ca-b8f3-8145713c0d33"
+			cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_XXBOIMP <> 'S' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+			cTodos   := "E1_XXGRBOL <> '2' .AND. E1_PREFIXO == 'FUP' .AND. E1_TIPO == 'BOL' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS == 'C' .AND. ((E1_PORTADO == '756' .AND. E1_CONTA = '39380') .OR. E1_PORTADO == ' ') .and. E1_FILIAL = '" + xFilial("SE1")+"'"
+
+		EndIf
 	EndIf
 
 Return
