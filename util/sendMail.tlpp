@@ -1,0 +1,60 @@
+#include "tlpp-core.th"
+
+/*/{Protheus.doc} className
+  (long_description)
+  @author user
+  @since 23/07/2025
+  @version version
+  /*/
+Class sendMail
+
+	public method New()
+	public method Send(cSubject, cTo, cCc, cHtml)
+
+EndClass
+
+
+Method New() class sendMail
+Return Self
+/*/{Protheus.doc} sendMail::Send
+Envia e-mail com o conteúdo HTML informado
+@description 
+@type method
+@version 1.0
+@author igor.guimaraes
+@since 11/17/2025
+@param cSubject, character, assunto do e-mail
+@param cTo, character, destinatário do e-mail
+@param cCc, character, destinatário em cópia do e-mail
+@param cHtml, character, conteúdo HTML do e-mail
+@return variant, resultado do envio do e-mail
+/*/
+Method Send(cSubject, cTo, cCc, cHtml) class sendMail
+
+	Local oProcess := TWFProcess():New("Disparo E-mail - SendMail.tlpp", cSubject)
+	Local cDir        := "/TMP/"
+	Local cArquivo    := "sendMail.html"
+	Local nHandle     := 0
+	Local oHtml
+
+	If file(cDir + cArquivo)
+		fErase(cDir + cArquivo)
+	EndIf
+
+	nHandle := FCREATE(cDir + cArquivo)
+
+	FWrite(nHandle,cHtml)
+	fclose(nHandle)
+	oProcess:NewTask( cSubject, cDir + cArquivo )
+	oProcess:cSubject   := cSubject
+	oProcess:cTo        := cTo
+	oProcess:cCc        := cCc
+
+	oHtml := oProcess:oHtml
+
+	oProcess:Start()
+	oProcess:Finish()
+
+	WFSendMail({"01","01"})
+
+Return Self
