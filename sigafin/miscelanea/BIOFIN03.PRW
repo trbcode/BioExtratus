@@ -42,10 +42,10 @@ Geração de Boletos
 /*/
 User Function BIOFIN03(cTpBol)
 
-	Private cCodBco		:= "756"
-	Private cCodAge		:= "4108"
-	Private cCodCta		:= "8429"
-	Private cNomeBco	:= "SICOOB CREDIMEP"
+	Private cCodBco		:= ""
+	Private cCodAge		:= ""
+	Private cCodCta		:= ""
+	Private cNomeBco	:= ""
 	Private oCodBco, oCodAge, oCodCta, oNomeBco, oPanel
 	Private oFont25		:= TFont():New("arial",,25,,.F.,,,,,.F.,.F.)
 	Private oFont20		:= TFont():New("arial",,20,,.F.,,,,,.F.,.F.)
@@ -74,6 +74,10 @@ User Function BIOFIN03(cTpBol)
 	If !lLogin
 		RpcSetEnv("01","01","Admin")
 	EndIf
+
+	if cEmpant == "20"
+		cCodBco := "001" //Força Banco do Brasil para Bio Extratus - Empresa 20
+	endif
 
 	GetBancos()
 	GetFilter(cCodBco)
@@ -222,8 +226,10 @@ description
 /*/
 User Function BOLTODOS()
 	GetFilter(cCodBco)
-	ClearMarksSE1(cMarc)
+	cTitulos := iif(empty(cMarc), cTitulos, cMarc)
+	ClearMarksSE1(cTitulos)
 	cMarc := ""
+	cTitulos := ""
 	oMark:CleanFilter()
 	oMark:SetFilterDefault(cTodos)
 	oMark:Refresh()
@@ -239,7 +245,10 @@ description
 @return variant, return_description
 /*/
 User Function NOPRINT()
+	cTitulos := iif(empty(cMarc), cTitulos, cMarc)
+	ClearMarksSE1(cTitulos)
 	cMarc := ""
+	cTitulos := ""
 	oMark:CleanFilter()
 	oMark:SetFilterDefault(cNoPrint)
 	oMark:Refresh()
@@ -1522,15 +1531,16 @@ Static function GetBancos()
 	While (cTMPSEE)->(!Eof())
 		nIndex++
 
-		if cCodBco == LEFT((cTMPSEE)->EE_CODIGO,3) .AND. cCodAge == Alltrim((cTMPSEE)->EE_AGENCIA) .AND. cCodCta == Alltrim((cTMPSEE)->EE_CONTA)
-			cNomeBco := Alltrim((cTMPSEE)->A6_NOME)
-			aadd(aBcoApt, {Alltrim(EE_CODIGO) +" - "+ Padr(Alltrim((cTMPSEE)->EE_AGENCIA),TamSX3("EE_AGENCIA")[1]) + Padr(Alltrim((cTMPSEE)->EE_DVAGE),TamSX3("EE_DVAGE")[1]) + " - "+ Padr(Alltrim((cTMPSEE)->EE_CONTA),TamSX3("EE_CONTA")[1]) +  Padr(Alltrim((cTMPSEE)->EE_DVCTA),TamSX3("EE_DVCTA")[1]) + " - " + Padr(Alltrim((cTMPSEE)->A6_NOME),TamSX3("A6_NOME")[1]),1} )
-		else
-			cCodAge := Alltrim((cTMPSEE)->EE_AGENCIA)
-			cCodCta := Alltrim((cTMPSEE)->EE_CONTA)
-			cNomeBco := Alltrim((cTMPSEE)->A6_NOME)
-			aadd(aBcoApt, {Alltrim(EE_CODIGO) +" - "+ Padr(Alltrim((cTMPSEE)->EE_AGENCIA),TamSX3("EE_AGENCIA")[1]) + Padr(Alltrim((cTMPSEE)->EE_DVAGE),TamSX3("EE_DVAGE")[1]) + " - "+ Padr(Alltrim((cTMPSEE)->EE_CONTA),TamSX3("EE_CONTA")[1]) +  Padr(Alltrim((cTMPSEE)->EE_DVCTA),TamSX3("EE_DVCTA")[1]) + " - " + Padr(Alltrim((cTMPSEE)->A6_NOME),TamSX3("A6_NOME")[1]),nIndex} )
+		nOrdem := nIndex
+		cCodBco := LEFT((cTMPSEE)->EE_CODIGO,3)
+		cCodAge := Alltrim((cTMPSEE)->EE_AGENCIA)
+		cCodCta := Alltrim((cTMPSEE)->EE_CONTA)
+		cNomeBco := Alltrim((cTMPSEE)->A6_NOME)
+		if cCodCta == "8429"
+			nIndex := 1
 		endif
+		aadd(aBcoApt, {Alltrim(EE_CODIGO) +" - "+ Padr(Alltrim((cTMPSEE	)->EE_AGENCIA),TamSX3("EE_AGENCIA")[1]) + Padr(Alltrim((cTMPSEE)->EE_DVAGE),TamSX3("EE_DVAGE")[1]) + " - "+ Padr(Alltrim((cTMPSEE)->EE_CONTA),TamSX3("EE_CONTA")[1]) +  Padr(Alltrim((cTMPSEE)->EE_DVCTA),TamSX3("EE_DVCTA")[1]) + " - " + Padr(Alltrim((cTMPSEE)->A6_NOME),TamSX3("A6_NOME")[1]),nIndex} )
+		nIndex := nOrdem
 
 		(cTMPSEE)->(DbSkip())
 	EndDo
@@ -1553,7 +1563,6 @@ Filtra os títulos conforme o banco selecionado
 Static function GetFilter(cCodBco)
 
 	if cEmpant == "20"
-
 		cNoPrint := "E1_XXGRBOL <> '2' .AND. E1_XXBOIMP <> 'S' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_FILIAL = '" + xFilial("SE1")+"'"
 		cTodos	 := "E1_XXGRBOL <> '2' .AND. (E1_PORTADO == '001' .OR. E1_PORTADO == ' ') .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_FILIAL = '" + xFilial("SE1")+"'"
 		cFilBB   := "E1_XXGRBOL <> '2' .AND. E1_PORTADO == '001' .AND. E1_SALDO > 0 .AND. E1_EMISSAO >= '" + cDataInicio + "' .AND. E1_XXTPDIS <> 'C'  .and. E1_FILIAL = '" + xFilial("SE1")+"'"
