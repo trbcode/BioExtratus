@@ -301,11 +301,11 @@ User Function BEWS0002(cOrigem,aDadosEmp,aDadosTit,aBancos,nPOS,aDatSacado,aBolT
 		freeObj(oResponse)
 
 	elseif lExclui
-		cNossoNum := STRTRAN(alltrim(SE1->E1_NOSNUM),"-","")
 		cPath  := "/boletos/"
 		nRecno := aDados[3]
 		dbSelectArea( "SE1" )
 		SE1->(DbGoTo(nRecno))
+		cNossoNum := STRTRAN(alltrim(SE1->E1_NOSNUM),"-","")
 		oJsonSicoob :=  JsonObject():New()
 		oJsonSicoob['numeroCliente']  := val(cCodConv)
 		oJsonSicoob['codigoModalidade']      := 1
